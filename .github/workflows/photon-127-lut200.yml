@@ -19,9 +19,57 @@ jobs:
           fetch-depth: 0
 
       - name: Apply Hinnka LUT 200% feature commit
+        shell: bash
         run: |
           git fetch https://github.com/bjzhou/PhotonCamera.git a81be3ddf8cdf79d1cd3bbb3d6273b2f5523d1db
+
+          set +e
           git cherry-pick --no-commit a81be3ddf8cdf79d1cd3bbb3d6273b2f5523d1db
+          CHERRY_STATUS=$?
+          set -e
+
+          if [ "$CHERRY_STATUS" -ne 0 ]; then
+            echo "Resolving expected compatibility conflicts against the older 1.27.2.2 UI/state code..."
+
+            # 1.27.2.2 already routes this panel through LutIntensitySlider, so keep its panel.
+            git checkout --ours -- app/src/main/java/com/hinnka/mycamera/ui/components/ColorRecipePanel.kt
+
+            # Keep the 1.27.2.2 camera/RAW ViewModel architecture intact.
+            git checkout --ours -- app/src/main/java/com/hinnka/mycamera/viewmodel/CameraViewModel.kt
+
+            # Take Hinnka's newer LUT intensity slider implementation verbatim.
+            git checkout --theirs -- app/src/main/java/com/hinnka/mycamera/ui/components/LutIntensitySlider.kt
+
+            # If this older ViewModel contains a direct 0..100% clamp, widen only that clamp.
+            python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('app/src/main/java/com/hinnka/mycamera/viewmodel/CameraViewModel.kt')
+          text = path.read_text()
+          old = 'intensity.coerceIn(0f, 1f)'
+          if old in text:
+              if 'import com.hinnka.mycamera.model.RecipeParam' not in text:
+                  anchor = 'import com.hinnka.mycamera.model.LutSelectorMode\n'
+                  if anchor not in text:
+                      raise SystemExit('Could not find RecipeParam import anchor')
+                  text = text.replace(anchor, anchor + 'import com.hinnka.mycamera.model.RecipeParam\n', 1)
+              text = text.replace(old, 'RecipeParam.LUT_INTENSITY.clamp(intensity)')
+              path.write_text(text)
+              print('Updated direct ViewModel LUT clamp to RecipeParam range.')
+          else:
+              print('No direct 0..1 ViewModel LUT clamp exists in 1.27.2.2; generic RecipeParam path is retained.')
+          PY
+
+            git add app/src/main/java/com/hinnka/mycamera/ui/components/ColorRecipePanel.kt
+            git add app/src/main/java/com/hinnka/mycamera/ui/components/LutIntensitySlider.kt
+            git add app/src/main/java/com/hinnka/mycamera/viewmodel/CameraViewModel.kt
+            git cherry-pick --quit || true
+          fi
+
+          echo "Verifying the 200% range was actually applied..."
+          grep -q 'LUT_INTENSITY(R.string.recipe_param_lut_intensity, 0.0f, 2.0f, 1f)' app/src/main/java/com/hinnka/mycamera/model/ColorRecipe.kt
+          grep -q 'valueRange = param.minValue..param.maxValue' app/src/main/java/com/hinnka/mycamera/ui/components/LutIntensitySlider.kt
+          git diff --check
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
