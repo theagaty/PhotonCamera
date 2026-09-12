@@ -17,7 +17,7 @@ diff --git a/app/src/main/java/com/hinnka/mycamera/viewmodel/CameraViewModel.kt 
          val activeUseJpgMax = desiredUseJpgMax && !desiredUseRaw
          if (activeUseJpgMax && prefs.useLivePhoto) {
              cameraController.setUseLivePhoto(false)
-@@ -4672,6 +4669,14 @@ class CameraViewModel(application: Application) : AndroidViewModel(application)
+@@ -4672,6 +4669,16 @@ class CameraViewModel(application: Application) : AndroidViewModel(application)
          }
      }
  
