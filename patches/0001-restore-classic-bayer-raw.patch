@@ -1,0 +1,75 @@
+diff --git a/app/src/main/java/com/hinnka/mycamera/viewmodel/CameraViewModel.kt b/app/src/main/java/com/hinnka/mycamera/viewmodel/CameraViewModel.kt
+--- a/app/src/main/java/com/hinnka/mycamera/viewmodel/CameraViewModel.kt
++++ b/app/src/main/java/com/hinnka/mycamera/viewmodel/CameraViewModel.kt
+@@ -863,6 +863,5 @@ class CameraViewModel(application: Application) : AndroidViewModel(application)
+         if (update.useRaw?.value == true) {
+             desiredUseMultipleExposure = false
+-            desiredUseRawMax = true
+         } else if (update.useRaw?.value == false) {
+             desiredUseRawMax = false
+         }
+@@ -880,8 +879,6 @@ class CameraViewModel(application: Application) : AndroidViewModel(application)
+             desiredUseJpgMax = false
+             desiredUseRawMax = false
+         }
+-        // 专业模式与 HDR+ 是同一个拍摄能力，不再保留可独立关闭的状态。
+-        desiredUseRawMax = desiredUseRaw
+         val activeUseJpgMax = desiredUseJpgMax && !desiredUseRaw
+         if (activeUseJpgMax && prefs.useLivePhoto) {
+             cameraController.setUseLivePhoto(false)
+@@ -4672,6 +4669,14 @@ class CameraViewModel(application: Application) : AndroidViewModel(application)
+         }
+     }
+ 
++    /**
++     * Toggle HDR+/RAWmax independently from single-frame RAW capture.
++     * Enabling HDR+ also enables RAW; disabling it leaves classic Bayer RAW active.
++     */
++    fun setUseRawMax(enabled: Boolean) {
++        viewModelScope.launch {
++            applyCameraFeatureUpdate(CameraFeatureUpdate(useRawMax = SettingValue(enabled)))
++        }
++    }
++
+     fun setExportDngWithRawExport(enabled: Boolean) {
+         viewModelScope.launch {
+             userPreferencesRepository.saveExportDngWithRawExport(enabled)
+diff --git a/app/src/main/java/com/hinnka/mycamera/ui/camera/CameraTopSheet.kt b/app/src/main/java/com/hinnka/mycamera/ui/camera/CameraTopSheet.kt
+--- a/app/src/main/java/com/hinnka/mycamera/ui/camera/CameraTopSheet.kt
++++ b/app/src/main/java/com/hinnka/mycamera/ui/camera/CameraTopSheet.kt
+@@ -111,6 +111,8 @@ fun CameraTopSheet(
+     onMoreSettingsClick: () -> Unit,
+     useJpgMax: Boolean,
+     onJpgMaxToggle: (Boolean) -> Unit,
++    useRawMax: Boolean,
++    onRawMaxToggle: (Boolean) -> Unit,
+     useMultipleExposure: Boolean,
+     onMultipleExposureToggle: (Boolean) -> Unit,
+     contentTopPadding: Dp = CameraTopSheetContentTopPadding,
+@@ -194,6 +196,12 @@ fun CameraTopSheet(
+                                 onClick = { showRenderingEngineSheet = true },
+                                 modifier = itemModifier
+                             )
++                            QuickSettingToggle(
++                                title = stringResource(R.string.settings_use_raw_max),
++                                checked = useRawMax,
++                                onCheckedChange = onRawMaxToggle,
++                                modifier = itemModifier
++                            )
+                             QuickSettingToggle(
+                                 title = stringResource(R.string.settings_ultra_hdr_gain_map),
+                                 checked = ultraHdrEnabled,
+diff --git a/app/src/main/java/com/hinnka/mycamera/ui/camera/CameraScreen.kt b/app/src/main/java/com/hinnka/mycamera/ui/camera/CameraScreen.kt
+--- a/app/src/main/java/com/hinnka/mycamera/ui/camera/CameraScreen.kt
++++ b/app/src/main/java/com/hinnka/mycamera/ui/camera/CameraScreen.kt
+@@ -1655,6 +1655,10 @@ fun CameraScreen(
+             onJpgMaxToggle = {
+                 viewModel.setUseJpgMax(it)
+             },
++            useRawMax = useRawMax,
++            onRawMaxToggle = {
++                viewModel.setUseRawMax(it)
++            },
+             useMultipleExposure = useMultipleExposure,
+             onMultipleExposureToggle = { viewModel.setUseMultipleExposure(it) },
+             contentTopPadding = CameraTopBarBaseTopPadding + topSafePadding
