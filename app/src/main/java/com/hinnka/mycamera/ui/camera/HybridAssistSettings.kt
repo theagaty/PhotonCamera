@@ -69,7 +69,7 @@ object HybridAssistSettings {
         verticalLevelEnabled = prefs.getBoolean(KEY_VERTICAL_LEVEL, true)
     }
 
-    fun setGridStyle(style: HybridGridStyle) {
+    fun updateGridStyle(style: HybridGridStyle) {
         gridStyle = style
         edit { putString(KEY_GRID_STYLE, style.name) }
     }
@@ -84,12 +84,12 @@ object HybridAssistSettings {
         edit { putInt(KEY_GRID_ROTATION, gridRotationDegrees) }
     }
 
-    fun setLevelPrecision(precision: HybridLevelPrecision) {
+    fun updateLevelPrecision(precision: HybridLevelPrecision) {
         levelPrecision = precision
         edit { putString(KEY_LEVEL_PRECISION, precision.name) }
     }
 
-    fun setVerticalLevelEnabled(enabled: Boolean) {
+    fun updateVerticalLevelEnabled(enabled: Boolean) {
         verticalLevelEnabled = enabled
         edit { putBoolean(KEY_VERTICAL_LEVEL, enabled) }
     }
