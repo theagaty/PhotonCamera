@@ -56,7 +56,7 @@ fun HybridAssistSettingsPanel() {
             value = HybridAssistSettings.gridStyle.label,
             actionLabel = "Next",
             onAction = {
-                HybridAssistSettings.setGridStyle(HybridAssistSettings.gridStyle.next())
+                HybridAssistSettings.updateGridStyle(HybridAssistSettings.gridStyle.next())
             }
         )
 
@@ -85,10 +85,10 @@ fun HybridAssistSettingsPanel() {
             leftLabel = "Standard",
             rightLabel = "Fine",
             onLeft = {
-                HybridAssistSettings.setLevelPrecision(HybridLevelPrecision.STANDARD)
+                HybridAssistSettings.updateLevelPrecision(HybridLevelPrecision.STANDARD)
             },
             onRight = {
-                HybridAssistSettings.setLevelPrecision(HybridLevelPrecision.FINE)
+                HybridAssistSettings.updateLevelPrecision(HybridLevelPrecision.FINE)
             }
         )
 
@@ -130,7 +130,7 @@ fun HybridAssistSettingsPanel() {
             }
             Switch(
                 checked = HybridAssistSettings.verticalLevelEnabled,
-                onCheckedChange = HybridAssistSettings::setVerticalLevelEnabled
+                onCheckedChange = HybridAssistSettings::updateVerticalLevelEnabled
             )
         }
     }
