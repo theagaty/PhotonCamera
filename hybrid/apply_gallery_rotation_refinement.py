@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 
 
 def replace_once(path, old, new, label):
@@ -49,18 +50,19 @@ replace_once(
     "use natural thumbnail aspect ratio",
 )
 
-# GalleryDetail used the legacy autoRotate modifier in several syntactic forms.
-# With true Activity rotation enabled these must all be removed, otherwise controls
-# either double-rotate or fail compilation once the helper import is gone.
+# GalleryDetail used the legacy autoRotate modifier for both controls and full-size
+# media, with and without arguments. Once the whole Activity genuinely rotates,
+# every one of these becomes a double-rotation compensation and must disappear.
 p = Path(detail)
 text = p.read_text()
-count = text.count(".autoRotate()")
-if count < 1:
+auto_rotate_pattern = r"\.autoRotate\([^)]*\)"
+matches = re.findall(auto_rotate_pattern, text)
+if not matches:
     raise SystemExit("GalleryDetail: no autoRotate usages found")
-text = text.replace(".autoRotate()", "")
+text = re.sub(auto_rotate_pattern, "", text)
 text = text.replace("import com.hinnka.mycamera.ui.camera.autoRotate\n", "")
-# Removing a chained modifier can leave whitespace-only continuation lines. Keep
+# Removing chained modifiers can leave whitespace-only continuation lines. Keep
 # git diff --check clean without otherwise reformatting the source file.
 text = "\n".join(line.rstrip() for line in text.split("\n"))
 p.write_text(text)
-print(f"Applied: GalleryDetail real-layout rotation ({count} autoRotate usages removed)")
+print(f"Applied: GalleryDetail real-layout rotation ({len(matches)} autoRotate usages removed)")
