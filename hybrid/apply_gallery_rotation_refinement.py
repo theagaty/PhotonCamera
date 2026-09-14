@@ -59,5 +59,8 @@ if count < 1:
     raise SystemExit("GalleryDetail: no autoRotate usages found")
 text = text.replace(".autoRotate()", "")
 text = text.replace("import com.hinnka.mycamera.ui.camera.autoRotate\n", "")
+# Removing a chained modifier can leave whitespace-only continuation lines. Keep
+# git diff --check clean without otherwise reformatting the source file.
+text = "\n".join(line.rstrip() for line in text.split("\n"))
 p.write_text(text)
 print(f"Applied: GalleryDetail real-layout rotation ({count} autoRotate usages removed)")
