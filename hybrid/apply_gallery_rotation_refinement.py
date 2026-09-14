@@ -49,11 +49,15 @@ replace_once(
     "use natural thumbnail aspect ratio",
 )
 
+# GalleryDetail used the legacy autoRotate modifier in several syntactic forms.
+# With true Activity rotation enabled these must all be removed, otherwise controls
+# either double-rotate or fail compilation once the helper import is gone.
 p = Path(detail)
 text = p.read_text()
-if text.count("modifier = Modifier.autoRotate()") != 4:
-    raise SystemExit(f"detail autoRotate count mismatch: {text.count('modifier = Modifier.autoRotate()')}")
-text = text.replace("modifier = Modifier.autoRotate()", "modifier = Modifier")
+count = text.count(".autoRotate()")
+if count < 1:
+    raise SystemExit("GalleryDetail: no autoRotate usages found")
+text = text.replace(".autoRotate()", "")
 text = text.replace("import com.hinnka.mycamera.ui.camera.autoRotate\n", "")
 p.write_text(text)
-print("Applied: GalleryDetail real-layout rotation")
+print(f"Applied: GalleryDetail real-layout rotation ({count} autoRotate usages removed)")
