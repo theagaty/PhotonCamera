@@ -69,6 +69,15 @@ jobs:
           grep -q 'HybridSettingsOrientationEffect' app/src/main/java/com/hinnka/mycamera/ui/settings/SettingsScreen.kt
           git diff --check
 
+      - name: Apply format-preserving batch export refinement
+        run: |
+          python3 hybrid/apply_batch_export_refinement.py
+          grep -q 'fun renderSelectedPhotos' app/src/main/java/com/hinnka/mycamera/viewmodel/GalleryViewModel.kt
+          grep -q 'GalleryBatchOperation.RENDER' app/src/main/java/com/hinnka/mycamera/ui/gallery/GalleryScreen.kt
+          grep -q '<string name="render">Render</string>' app/src/main/res/values/strings.xml
+          grep -q '<string name="rendering_progress">Rendering · %1$d/%2$d</string>' app/src/main/res/values/strings.xml
+          git diff --check
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
