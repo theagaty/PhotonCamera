@@ -331,6 +331,7 @@ fun SettingsScreen(
     val vendorCaptureSettingsByLens by viewModel.vendorCaptureSettingsByLens.collectAsState()
     val customVendorKeySettings by viewModel.customVendorKeySettings.collectAsState()
     val useRaw by viewModel.useRaw.collectAsState(initial = false)
+    val useRawMax by viewModel.useRawMax.collectAsState(initial = false)
     val exportDngWithRawExport by viewModel.exportDngWithRawExport.collectAsState(initial = false)
     val defaultFocalLength by viewModel.defaultFocalLength.collectAsState(initial = 0f)
     val customLensIds by viewModel.customLensIds.collectAsState(initial = emptyList())
@@ -1993,10 +1994,34 @@ fun SettingsScreen(
                 }
 
                 SettingsPage.PROFESSIONAL_MODE -> {
-                    // 专业模式使用 HDR+，融合模式决定是否支持包围曝光。
                     SettingsSection(
                         title = stringResource(R.string.settings_professional_group_max_hdr)
                     ) {
+                        SwitchSettingItem(
+                            title = stringResource(R.string.morph_rawmax_enabled),
+                            description = stringResource(R.string.morph_rawmax_enabled_description),
+                            checked = useRawMax,
+                            onCheckedChange = viewModel::setUseRawMax,
+                        )
+
+                        HorizontalDivider(
+                            color = Color.White.copy(alpha = 0.1f),
+                            modifier = Modifier.padding(vertical = 12.dp)
+                        )
+
+                        if (!useRawMax) {
+                            Text(
+                                text = stringResource(R.string.morph_classic_raw_active),
+                                color = Color.White,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = stringResource(R.string.morph_classic_raw_active_description),
+                                color = Color.White.copy(alpha = 0.65f),
+                                fontSize = 13.sp,
+                            )
+                        } else {
                         QualityLevelSetting(
                             title = stringResource(R.string.settings_raw_max_spatial_mode),
                             description = stringResource(R.string.settings_raw_max_spatial_mode_description),
@@ -2055,6 +2080,7 @@ fun SettingsScreen(
                             onCheckedChange = viewModel::setHdrPlusBracketExposureEnabled,
                             enabled = hdrPlusMergeMode.supportsBracketExposure,
                         )
+                        }
 
                         HorizontalDivider(
                             color = Color.White.copy(alpha = 0.1f),
@@ -2080,6 +2106,7 @@ fun SettingsScreen(
 
                     Spacer(modifier = Modifier.height(24.dp))
 
+                    if (useRawMax) {
                     SettingsSection(
                         title = stringResource(R.string.settings_professional_group_image_quality)
                     ) {
@@ -2177,6 +2204,7 @@ fun SettingsScreen(
                         )
                     }
 
+                    }
                     Spacer(modifier = Modifier.height(24.dp))
 
                     SettingsSection(
