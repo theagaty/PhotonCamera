@@ -6,6 +6,10 @@ on:
     branches:
       - 'hybrid/1.28.2.1-perfect-morph-v1'
 
+concurrency:
+  group: photon-perfect-morph-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
