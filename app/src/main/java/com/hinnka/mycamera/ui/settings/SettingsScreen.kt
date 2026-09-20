@@ -1023,7 +1023,7 @@ fun SettingsScreen(
                                 selectedPage = null
                             }
                         },
-                        modifier = Modifier.autoRotate()
+                        modifier = Modifier
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
@@ -1103,6 +1103,13 @@ fun SettingsScreen(
                             checked = showLevelIndicator,
                             onCheckedChange = { viewModel.setShowLevelIndicator(it) }
                         )
+
+                        HorizontalDivider(
+                            color = Color.White.copy(alpha = 0.1f),
+                            modifier = Modifier.padding(vertical = 8.dp)
+                        )
+
+                        MorphAssistSettingsPanel()
 
                         HorizontalDivider(
                             color = Color.White.copy(alpha = 0.1f),
