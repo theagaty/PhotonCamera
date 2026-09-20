@@ -32,6 +32,10 @@ jobs:
           grep -q 'fun renderPhotoAsJpeg' app/src/main/java/com/hinnka/mycamera/viewmodel/GalleryViewModel.kt
           grep -q '<string name="render">Render</string>' app/src/main/res/values/strings.xml
           grep -q 'CustomSlider(' app/src/main/java/com/hinnka/mycamera/ui/components/ColorRecipePanel.kt
+          grep -q 'CLASSIC_CFA_1271' app/src/main/java/com/hinnka/mycamera/gallery/GalleryManager.kt
+          grep -q 'RawLegacyAutoExposureMatcher.createRequest' app/src/main/java/com/hinnka/mycamera/gallery/GalleryManager.kt
+          grep -q 'physicalCrop=false' app/src/main/java/com/hinnka/mycamera/gallery/GalleryManager.kt
+          grep -q 'RawProcessor.saveToDng(' app/src/main/java/com/hinnka/mycamera/gallery/GalleryManager.kt
           git show --check --oneline --no-patch HEAD
 
       - name: Set up JDK 17

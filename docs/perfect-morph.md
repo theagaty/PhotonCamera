@@ -30,11 +30,19 @@ The working Photon 1.27.2.2 custom branch is intentionally left untouched.
 - Reuse the current v1.28.2.1 single-frame RAW save path rather than replacing the latest RAW writer wholesale.
 - Keep current Pro RAW behavior available independently.
 
-## Stage 3 - v1.27.1 capture behavior
+## Stage 3 - v1.27.1 Classic CFA behavior
 
-- Compare and selectively port the v1.27.1 automatic RAW exposure behavior into Classic CFA only.
-- Do not transplant the full v1.27.1 Camera2Controller.
-- Preserve manual exposure behavior.
+Implemented on top of the Stage 2 Classic/HDR+ separation:
+
+- Classic CFA now persists the complete single-frame RAW_SENSOR Bayer payload before rendering.
+- No software physical RAW crop is applied to Classic CFA sensor data.
+- DNG DefaultCrop is retained as non-destructive framing metadata, matching the 1.27.1 philosophy.
+- Classic CFA uses the maintained spatial/viewfinder solver derived from Photon 1.27.1.
+- The Classic capture profile deliberately bypasses Photon HDR scene estimation, HDRNet, portrait-priority weighting and capture PGTM.
+- The exposure result is a scalar viewfinder-matching BaselineExposure rather than the newer Photon HDR preparation chain.
+- Camera2 manual/automatic sensor exposure controls remain current and untouched; the ordinary single-frame request path was already materially similar to 1.27.1.
+- The newest renderer is allowed to create Photon's internal JPEG/preview only after the Classic DNG has been persisted.
+- HDR+/RAWmax remains on the current v1.28.2.1 multi-frame path and is unaffected.
 
 ## Stage 4 - Spatial Bayer
 
