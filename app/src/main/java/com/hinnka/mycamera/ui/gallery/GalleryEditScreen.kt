@@ -105,7 +105,6 @@ import androidx.media3.ui.AspectRatioFrameLayout
 import com.hinnka.mycamera.lut.VideoLutEffect
 import com.hinnka.mycamera.lut.LutConfig
 import com.hinnka.mycamera.video.VideoLogProfile
-import com.hinnka.mycamera.ui.camera.autoRotate
 import com.hinnka.mycamera.ui.components.RawEditPanelContentMode
 import me.saket.telephoto.zoomable.DoubleClickToZoomListener
 import com.hinnka.mycamera.ui.icons.AppIcons
@@ -287,7 +286,7 @@ fun GalleryEditScreen(
     val editRawSpectralFilmMDensityGain by viewModel.editRawSpectralFilmMDensityGain.collectAsState()
     val editRawSpectralFilmYDensityGain by viewModel.editRawSpectralFilmYDensityGain.collectAsState()
     val availableDcps = viewModel.availableDcps
-    
+
     val editComputationalAperture by viewModel.editComputationalAperture.collectAsState()
     val editBokehStyle by viewModel.editBokehStyle.collectAsState()
     val editFocusX by viewModel.editFocusPointX.collectAsState()
@@ -711,12 +710,12 @@ fun GalleryEditScreen(
             val referencePhotoUrl = userPreferences.referencePhotoUrl
             var isMinimized by remember { mutableStateOf(false) }
             var isLarge by remember { mutableStateOf(false) }
-            
+
             referencePhotoUrl?.let { url ->
                 val density = androidx.compose.ui.platform.LocalDensity.current
                 val initialOffsetX = remember(density) { with(density) { 20.dp.toPx() } }
                 val initialOffsetY = remember(density) { with(density) { 80.dp.toPx() } }
-                
+
                 var offsetX by remember { mutableStateOf(initialOffsetX) }
                 var offsetY by remember { mutableStateOf(initialOffsetY) }
 
@@ -776,7 +775,7 @@ fun GalleryEditScreen(
                                             .fillMaxWidth(),
                                         contentScale = ContentScale.FillWidth
                                     )
-                                    
+
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
@@ -820,7 +819,7 @@ fun GalleryEditScreen(
                                         }
                                     }
                                 }
-                                
+
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -2417,7 +2416,7 @@ private fun VideoEditPlayer(
     val mediaUri = remember(photo.id, photo.uri, photo.sourceUri) {
         photo.sourceUri ?: photo.uri
     }
-    
+
     PLog.d("VideoEditPlayer", "VideoEditPlayer composable recomposing/initializing. photoId: ${photo.id}, mediaUri: $mediaUri")
 
     var isPlayerActive by remember { mutableStateOf(false) }
@@ -2430,7 +2429,7 @@ private fun VideoEditPlayer(
         PLog.d("VideoEditPlayer", "Instantiating new VideoLutEffect.")
         VideoLutEffect(lutConfig, recipeParams, sourceLogProfile)
     }
-    
+
     val exoPlayer = remember(photo.id, mediaUri, isPlayerActive, videoLutEffect) {
         if (!isPlayerActive) return@remember null
         PLog.d("VideoEditPlayer", "Re-creating loopable ExoPlayer instance for video preview.")
@@ -2440,7 +2439,7 @@ private fun VideoEditPlayer(
             setVideoEffects(listOf(videoLutEffect))
             prepare()
             playWhenReady = true
-            
+
             addListener(object : Player.Listener {
                 override fun onPlaybackStateChanged(state: Int) {
                     PLog.d("VideoEditPlayer", "ExoPlayer state changed: $state")
@@ -2487,7 +2486,7 @@ private fun VideoEditPlayer(
                 it.player = exoPlayer
                 it.visibility = android.view.View.VISIBLE
             },
-            modifier = modifier.autoRotate(matchParentSize = true)
+            modifier = modifier
         )
     } else {
         Spacer(modifier = modifier.fillMaxSize())
