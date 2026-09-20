@@ -79,7 +79,13 @@ enum class GalleryTab {
 
 enum class GalleryBatchOperation {
     PASTE_SETTINGS,
-    EXPORT
+    EXPORT,
+    RENDER
+}
+
+private enum class BatchImageOutputMode {
+    PRESERVE_FORMAT,
+    RENDER_JPEG
 }
 
 data class GalleryBatchOperationProgress(
@@ -4356,34 +4362,51 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
     }
 
     /**
-     * 批量导出选中的照片
+     * Batch export while preserving each selected photo's stored source format.
      */
     fun exportSelectedPhotos(onComplete: (Int) -> Unit = {}) {
+        batchExportSelectedPhotos(BatchImageOutputMode.PRESERVE_FORMAT, onComplete)
+    }
+
+    /**
+     * Batch render every selected photo through Photon and force JPEG output.
+     */
+    fun renderSelectedPhotos(onComplete: (Int) -> Unit = {}) {
+        batchExportSelectedPhotos(BatchImageOutputMode.RENDER_JPEG, onComplete)
+    }
+
+    private fun batchExportSelectedPhotos(
+        outputMode: BatchImageOutputMode,
+        onComplete: (Int) -> Unit = {},
+    ) {
         if (_isExporting.value || _isPastingSettings.value) return
-        val selectedSnapshot = selectedPhotos.toList()
-        if (selectedSnapshot.isEmpty()) return
-        val toExport = selectedSnapshot.filter { it.isImage }
+        val toExport = selectedPhotos.toList().filter { it.isImage }
         if (toExport.isEmpty()) {
             onComplete(0)
             return
         }
         val selectedTabSnapshot = selectedTab
+        val operation = if (outputMode == BatchImageOutputMode.PRESERVE_FORMAT) {
+            GalleryBatchOperation.EXPORT
+        } else {
+            GalleryBatchOperation.RENDER
+        }
 
         viewModelScope.launch {
             _isExporting.value = true
             val total = toExport.size
             exportProgress = 0 to total
             _batchOperationProgress.value = GalleryBatchOperationProgress(
-                operation = GalleryBatchOperation.EXPORT,
+                operation = operation,
                 completed = 0,
-                total = total
+                total = total,
             )
             var successCount = 0
-            
+
             try {
                 val context = getApplication<Application>()
                 val quality = photoQuality.firstOrNull() ?: 95
-                
+
                 withContext(Dispatchers.IO) {
                     toExport.forEachIndexed { index, photo ->
                         try {
@@ -4397,56 +4420,146 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
                                     ?: photo.relatedPhoto?.metadata
                                     ?: photo.metadata
                                     ?: MediaMetadata()
-                                val exported = GalleryManager.exportPhoto(
-                                    context,
-                                    photoId,
-                                    null,
-                                    contentRepository.photoProcessor,
-                                    metadata,
-                                    0f,
-                                    0f,
-                                    0f,
-                                    quality
-                                )
-                                if (exported) {
-                                    successCount += 1
+                                val exported = if (
+                                    outputMode == BatchImageOutputMode.PRESERVE_FORMAT
+                                ) {
+                                    GalleryManager.exportOriginalImage(
+                                        context = context,
+                                        photoId = photoId,
+                                        metadata = metadata,
+                                    )
+                                } else {
+                                    GalleryManager.exportPhoto(
+                                        context = context,
+                                        id = photoId,
+                                        bitmap = null,
+                                        photoProcessor = contentRepository.photoProcessor,
+                                        metadata = metadata,
+                                        sharpeningValue = 0f,
+                                        noiseReductionValue = 0f,
+                                        chromaNoiseReductionValue = 0f,
+                                        photoQuality = quality,
+                                        preferHeicExport = false,
+                                        preferJpeg444Export = false,
+                                    )
                                 }
+                                if (exported) successCount += 1
                             }
                         } catch (e: CancellationException) {
                             throw e
                         } catch (e: Exception) {
-                            PLog.e(
-                                TAG,
-                                "Failed to export selected photo ${photo.id}",
-                                e
-                            )
+                            PLog.e(TAG, "Failed selected-photo output operation", e)
                         } finally {
                             withContext(Dispatchers.Main) {
                                 val completed = index + 1
                                 exportProgress = completed to total
-                                _batchOperationProgress.value =
-                                    GalleryBatchOperationProgress(
-                                        operation = GalleryBatchOperation.EXPORT,
-                                        completed = completed,
-                                        total = total
-                                    )
+                                _batchOperationProgress.value = GalleryBatchOperationProgress(
+                                    operation = operation,
+                                    completed = completed,
+                                    total = total,
+                                )
                             }
                         }
                     }
                 }
-                
+
                 exitSelectionMode()
                 loadPhotos()
                 onComplete(successCount)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                PLog.e(TAG, "Failed to batch export photos", e)
+                PLog.e(TAG, "Failed batch output operation", e)
                 onComplete(0)
             } finally {
                 _isExporting.value = false
                 exportProgress = 0 to 0
                 _batchOperationProgress.value = null
+            }
+        }
+    }
+
+    private suspend fun resolvePhotonPhotoForOutput(
+        photo: MediaData,
+    ): Pair<String, MediaMetadata>? {
+        val context = getApplication<Application>()
+        val photoId = if (selectedTab == GalleryTab.SYSTEM) {
+            photo.relatedPhoto?.id
+        } else {
+            photo.id
+        } ?: return null
+        val metadata = GalleryManager.loadMetadata(context, photoId)
+            ?: photo.relatedPhoto?.metadata
+            ?: photo.metadata
+            ?: MediaMetadata()
+        return photoId to metadata
+    }
+
+    fun exportPhotoPreservingFormat(
+        photo: MediaData,
+        onComplete: (Boolean) -> Unit = {},
+    ) {
+        if (photo.isVideo) {
+            onComplete(false)
+            return
+        }
+        viewModelScope.launch {
+            try {
+                val resolved = resolvePhotonPhotoForOutput(photo)
+                val success = resolved?.let { (photoId, metadata) ->
+                    GalleryManager.exportOriginalImage(
+                        context = getApplication<Application>(),
+                        photoId = photoId,
+                        metadata = metadata,
+                    )
+                } ?: false
+                if (success) loadPhotos()
+                onComplete(success)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                PLog.e(TAG, "Failed original-format photo export", e)
+                onComplete(false)
+            }
+        }
+    }
+
+    fun renderPhotoAsJpeg(
+        photo: MediaData,
+        onComplete: (Boolean) -> Unit = {},
+    ) {
+        if (photo.isVideo) {
+            onComplete(false)
+            return
+        }
+        viewModelScope.launch {
+            try {
+                val resolved = resolvePhotonPhotoForOutput(photo)
+                val success = resolved?.let { (photoId, metadata) ->
+                    GalleryManager.exportPhoto(
+                        context = getApplication<Application>(),
+                        id = photoId,
+                        bitmap = null,
+                        photoProcessor = contentRepository.photoProcessor,
+                        metadata = metadata,
+                        sharpeningValue = 0f,
+                        noiseReductionValue = 0f,
+                        chromaNoiseReductionValue = 0f,
+                        photoQuality = photoQuality.firstOrNull() ?: 95,
+                        preferHeicExport = false,
+                        preferJpeg444Export = false,
+                    )
+                } ?: false
+                if (success) {
+                    exitEditMode()
+                    loadPhotos()
+                }
+                onComplete(success)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                PLog.e(TAG, "Failed JPEG render", e)
+                onComplete(false)
             }
         }
     }
