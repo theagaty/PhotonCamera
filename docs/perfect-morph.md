@@ -44,3 +44,18 @@ The working Photon 1.27.2.2 custom branch is intentionally left untouched.
 ## Validation
 
 For RAW outputs, compare CFA layout, samples-per-pixel, black/white levels, default crop/active area, BaselineExposure and Lightroom behavior. Verify DNG export independently from capture processing.
+
+## Unified editor history
+
+Built on the stable Stage 2 RAW foundation.
+
+- Undo and Redo operate on complete editor snapshots rather than individual numeric parameters.
+- Continuous adjustments are settled into one history state after interaction stops instead of creating a state for every tiny slider tick.
+- A still-pending slider edit is committed immediately when Undo is pressed.
+- Reset All restores the editor-entry baseline and is itself undoable.
+- A new edit after Undo clears the old Redo branch.
+- History is bounded to 100 states per editing session.
+- RAW history restoration re-persists the restored RAW development metadata before the preview refreshes.
+- LUT, color recipe, frame selection, detail controls, RAW controls, bokeh parameters, crop, straighten, rotation and mirror state participate in history.
+- Capture code, Classic CFA routing, HDR+/RAWmax, DNG persistence, Sabre and Spatial processing are untouched.
+

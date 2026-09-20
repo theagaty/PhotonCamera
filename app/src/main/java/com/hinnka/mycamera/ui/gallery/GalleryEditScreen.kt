@@ -227,6 +227,10 @@ fun GalleryEditScreen(
     val isPurchased by viewModel.isPurchased.collectAsState()
     val categoryOrder by viewModel.categoryOrder.collectAsState()
     val hasCopiedEditSettings by viewModel.hasCopiedEditSettings.collectAsState()
+    val canUndoEdit by viewModel.canUndoEdit.collectAsState()
+    val canRedoEdit by viewModel.canRedoEdit.collectAsState()
+    val canResetEdit by viewModel.canResetEdit.collectAsState()
+    val editApplyEffectsToVideo by viewModel.editApplyEffectsToVideo.collectAsState()
 
     var isSaving by remember { mutableStateOf(false) }
     var isLoadingPreview by remember { mutableStateOf(false) }
@@ -299,6 +303,57 @@ fun GalleryEditScreen(
     val editMirrorHorizontal by viewModel.editMirrorHorizontal.collectAsState()
 
     val editAiDenoiseStrength by viewModel.editAiDenoiseStrength.collectAsState()
+
+    val historyCropKey = editCropRect?.let {
+        listOf(it.left, it.top, it.right, it.bottom)
+    }
+    LaunchedEffect(
+        editLutId,
+        editPhotoRecipeParams,
+        syncAdjustmentsToLut,
+        editFrameId,
+        editApplyEffectsToVideo,
+        editSharpening,
+        editNoiseReduction,
+        editChromaNoiseReduction,
+        editRawExposureCompensation,
+        editRawAutoExposure,
+        editRawHighlightsAdjustment,
+        editRawShadowsAdjustment,
+        editRawBlackPointCorrection,
+        editRawWhitePointCorrection,
+        editRawLensShadingCorrectionEnabled,
+        editRawDROMode,
+        editRawBlackLevelMode,
+        editRawCustomBlackLevel,
+        editRawWhiteLevelMode,
+        editRawCustomWhiteLevel,
+        editRawCfaCorrectionMode,
+        editRawDcpId,
+        editRawEmbeddedDngProfileId,
+        editRawHncsProfileId,
+        editRawHncsRenderIntent,
+        editRawHncsFilmCurveMode,
+        editRawBaselineLutId,
+        editRawColorEngine,
+        editRawToneMappingParameters,
+        editRawSpectralFilmStock,
+        editRawSpectralFilmPrint,
+        editRawSpectralFilmCDensityGain,
+        editRawSpectralFilmMDensityGain,
+        editRawSpectralFilmYDensityGain,
+        editComputationalAperture,
+        editBokehStyle,
+        editFocusX,
+        editFocusY,
+        historyCropKey,
+        editCropAspectOption,
+        editRotationDegrees,
+        editStraightenDegrees,
+        editMirrorHorizontal,
+    ) {
+        viewModel.notifyEditStateChanged()
+    }
 
     val isRaw = editSourcePhoto?.let { viewModel.isRaw(it.id) } ?: false
     val refreshKey = editSourcePhoto?.id?.let { viewModel.photoRefreshKeys[it] } ?: 0L
@@ -1127,6 +1182,35 @@ fun GalleryEditScreen(
                             }
                         },
                         actions = {
+                            IconButton(
+                                onClick = {
+                                    viewModel.undoEdit { success ->
+                                        if (success && isRaw) requestRawPreviewRefresh()
+                                    }
+                                },
+                                enabled = canUndoEdit && !isSaving && !isRefreshingRawPreview,
+                            ) {
+                                Icon(
+                                    imageVector = AppIcons.AutoMirroredOutlinedUndo,
+                                    contentDescription = stringResource(R.string.edit_undo),
+                                    tint = if (canUndoEdit) Color.White else Color.White.copy(alpha = 0.35f),
+                                )
+                            }
+                            IconButton(
+                                onClick = {
+                                    viewModel.redoEdit { success ->
+                                        if (success && isRaw) requestRawPreviewRefresh()
+                                    }
+                                },
+                                enabled = canRedoEdit && !isSaving && !isRefreshingRawPreview,
+                            ) {
+                                Icon(
+                                    imageVector = AppIcons.AutoMirroredOutlinedUndo,
+                                    contentDescription = stringResource(R.string.edit_redo),
+                                    tint = if (canRedoEdit) Color.White else Color.White.copy(alpha = 0.35f),
+                                    modifier = Modifier.graphicsLayer { scaleX = -1f },
+                                )
+                            }
                             if (isRaw) {
                                 val infiniteTransition = rememberInfiniteTransition(label = "refresh")
                                 val rotation by infiniteTransition.animateFloat(
@@ -1259,6 +1343,23 @@ fun GalleryEditScreen(
                                         leadingIcon = {
                                             Icon(
                                                 imageVector = AppIcons.ContentCopy,
+                                                contentDescription = null
+                                            )
+                                        }
+                                    )
+                                    HorizontalDivider()
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.edit_reset_all)) },
+                                        onClick = {
+                                            showMoreMenu = false
+                                            viewModel.resetAllEdits { success ->
+                                                if (success && isRaw) requestRawPreviewRefresh()
+                                            }
+                                        },
+                                        enabled = canResetEdit,
+                                        leadingIcon = {
+                                            Icon(
+                                                imageVector = AppIcons.RestartAlt,
                                                 contentDescription = null
                                             )
                                         }
