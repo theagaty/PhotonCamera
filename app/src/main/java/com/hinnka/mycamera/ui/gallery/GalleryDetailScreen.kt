@@ -179,7 +179,6 @@ fun GalleryDetailScreen(
     var isZoomed by remember { mutableStateOf(false) }
     var showExportDialog by remember { mutableStateOf(false) }
     var isSaving by remember { mutableStateOf(false) }
-    var isExportingDng by remember { mutableStateOf(false) }
     var isCopyingSettings by remember { mutableStateOf(false) }
     var isPastingSettings by remember { mutableStateOf(false) }
     val isVideoExporting = viewModel.isVideoExporting
@@ -360,9 +359,6 @@ fun GalleryDetailScreen(
     LaunchedEffect(currentPhoto?.id) {
         showHdrStrengthPanel = false
     }
-    val isCurrentRawPhoto = !isCurrentPhotoProcessing && currentPhoto?.let {
-        it.isImage && (viewModel.selectedTab == GalleryTab.PHOTON || it.relatedPhoto != null) && viewModel.isRaw(it.id)
-    } == true
     var displayPhotoSize by remember(currentPhoto?.id) { mutableLongStateOf(currentPhoto?.size ?: 0L) }
 
     LaunchedEffect(currentPhoto?.id, currentPhoto?.size, currentPhoto?.uri, currentPhoto?.sourceUri, isCurrentPhotoProcessing) {
@@ -846,32 +842,30 @@ fun GalleryDetailScreen(
         )
     }
 
-    // 导出确认对话框
+    // Render confirmation: apply the current Photon edit and create a JPEG.
     if (showExportDialog && !isCurrentPhotoProcessing) {
         AlertDialog(
             onDismissRequest = { showExportDialog = false },
-            title = { Text(stringResource(R.string.export)) },
-            text = {
-                Text(stringResource(R.string.export_confirm))
-            },
+            title = { Text(stringResource(R.string.render)) },
+            text = { Text(stringResource(R.string.render_confirm)) },
             confirmButton = {
                 TextButton(
                     onClick = {
                         showExportDialog = false
                         currentPhoto?.let {
                             isSaving = true
-                            viewModel.exportPhoto(it) { success ->
+                            viewModel.renderPhotoAsJpeg(it) { success ->
                                 isSaving = false
-                                if (success) {
-                                    Toast.makeText(context, R.string.export_success, Toast.LENGTH_SHORT).show()
-                                } else {
-                                    Toast.makeText(context, R.string.export_failed, Toast.LENGTH_SHORT).show()
-                                }
+                                Toast.makeText(
+                                    context,
+                                    if (success) R.string.render_success else R.string.render_failed,
+                                    Toast.LENGTH_SHORT
+                                ).show()
                             }
                         }
                     }
                 ) {
-                    Text(stringResource(R.string.export), color = AccentOrange)
+                    Text(stringResource(R.string.render), color = AccentOrange)
                 }
             },
             dismissButton = {
@@ -1090,8 +1084,29 @@ fun GalleryDetailScreen(
                         icon = AppIcons.Output,
                         text = context.getString(R.string.export),
                         isLoading = isSaving,
-                        enabled = !isCopyingSettings && !isPastingSettings,
+                        enabled = !isSaving && !isCopyingSettings && !isPastingSettings,
                         onClick = {
+                            showMoreSheet = false
+                            isSaving = true
+                            viewModel.exportPhotoPreservingFormat(currentPhoto) { success ->
+                                isSaving = false
+                                Toast.makeText(
+                                    context,
+                                    if (success) R.string.export_success else R.string.export_failed,
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        }
+                    )
+                )
+                add(
+                    GalleryMoreAction(
+                        icon = AppIcons.AutoAwesome,
+                        text = context.getString(R.string.render),
+                        isLoading = isSaving,
+                        enabled = !isSaving && !isCopyingSettings && !isPastingSettings,
+                        onClick = {
+                            showMoreSheet = false
                             showExportDialog = true
                         }
                     )
@@ -1186,31 +1201,7 @@ fun GalleryDetailScreen(
                 )
             )
 
-            if (isCurrentRawPhoto) {
-                add(
-                    GalleryMoreAction(
-                        iconText = context.getString(R.string.dng_format),
-                        text = context.getString(R.string.dng_format),
-                        isLoading = isExportingDng,
-                        enabled = !isSaving &&
-                            !isExportingDng &&
-                            !isCopyingSettings &&
-                            !isPastingSettings,
-                        onClick = {
-                            showMoreSheet = false
-                            isExportingDng = true
-                            viewModel.exportDng(currentPhoto) { success ->
-                                isExportingDng = false
-                                Toast.makeText(
-                                    context,
-                                    if (success) R.string.export_dng_success else R.string.export_dng_failed,
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                            }
-                        }
-                    )
-                )
-            }
+
         }
 
         @OptIn(ExperimentalMaterial3Api::class)
