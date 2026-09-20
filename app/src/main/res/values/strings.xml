@@ -263,6 +263,16 @@
     <string name="grid_style_golden_ratio">Golden Ratio</string>
     <string name="grid_style_golden_triangle">Golden Triangle</string>
     <string name="grid_style_golden_spiral">Golden Spiral</string>
+    <string name="morph_grid_rotation">Grid Rotation</string>
+    <string name="morph_grid_rotation_description">Rotate directional composition guides without changing the selected grid style</string>
+    <string name="morph_grid_rotation_0">0°</string>
+    <string name="morph_grid_rotation_90">90°</string>
+    <string name="morph_grid_rotation_180">180°</string>
+    <string name="morph_grid_rotation_270">270°</string>
+    <string name="morph_level_precision">Horizontal Level Precision</string>
+    <string name="morph_level_precision_description">Standard keeps the original tolerance; Fine only confirms alignment very close to 0°</string>
+    <string name="morph_level_standard">Standard</string>
+    <string name="morph_level_fine">Fine</string>
     <string name="settings_use_jpg_max">Multi-frame denoise</string>
     <string name="settings_use_raw_max">HDR+</string>
     <string name="settings_raw_max_spatial_mode">HDR+ merge mode</string>
