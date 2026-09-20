@@ -1838,6 +1838,55 @@ object GalleryManager {
             }
         }
 
+    /**
+     * Export the stored source file without running the Photon render pipeline.
+     *
+     * DNG takes precedence because RAW captures also keep an internal raster preview.
+     * Raster captures preserve HEIC/HEIF versus JPEG byte-for-byte.
+     */
+    suspend fun exportOriginalImage(
+        context: Context,
+        photoId: String,
+        metadata: MediaMetadata,
+    ): Boolean = withContext(Dispatchers.IO) {
+        val dngFile = getDngFile(context, photoId)
+        if (dngFile.exists() && dngFile.length() > 0L) {
+            return@withContext exportDng(context, photoId, dngFile, metadata)
+        }
+
+        val sourceFile = getOriginalImageFile(context, photoId)
+            ?: return@withContext false
+        val extension = sourceFile.extension.lowercase(Locale.US)
+        val (outputExtension, mimeType) = when (extension) {
+            "heic" -> "heic" to "image/heic"
+            "heif" -> "heif" to "image/heif"
+            else -> "jpg" to "image/jpeg"
+        }
+
+        val dateTaken = metadata.dateTaken ?: System.currentTimeMillis()
+        val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US)
+            .format(Date(dateTaken))
+        val destination = resolvePhotoExportDestination(context)
+        val uri = exportFileToConfiguredPhotoStorage(
+            context = context,
+            destination = destination,
+            collectionUri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+            displayName = "PhotonCamera_${timestamp}.${outputExtension}",
+            mimeType = mimeType,
+            sourceFile = sourceFile,
+            dateTaken = dateTaken,
+        ) ?: return@withContext false
+
+        updateMetadata(context, photoId) { current ->
+            current.copy(exportedUris = current.exportedUris + uri.toString())
+        }
+        PLog.d(
+            TAG,
+            "Original-format export saved: id=$photoId, source=${sourceFile.name}, uri=$uri"
+        )
+        true
+    }
+
     suspend fun preparePhoto(
         context: Context,
         metadata: MediaMetadata,
