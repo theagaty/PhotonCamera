@@ -70,7 +70,6 @@ import com.hinnka.mycamera.ui.components.ProcessingPhotoShimmerView
 import coil.load
 import coil.dispose
 import com.hinnka.mycamera.ui.theme.AccentOrange
-import com.hinnka.mycamera.utils.OrientationObserver
 import com.hinnka.mycamera.viewmodel.GalleryBatchOperation
 import com.hinnka.mycamera.viewmodel.GalleryTab
 import com.hinnka.mycamera.viewmodel.GalleryViewModel
@@ -927,8 +926,8 @@ private fun GalleryRecyclerGrid(
                     processingPhotos = processingPhotos,
                     isSelectionMode = isSelectionMode,
                     isLoadingMore = isLoadingMore,
-                    isLandscape = OrientationObserver.isLandscape,
-                    rotationDegrees = OrientationObserver.rotationDegrees,
+                    isLandscape = false,
+                    rotationDegrees = 0f,
                     onPhotoClick = { tab, index ->
                         val state = recyclerView.layoutManager?.onSaveInstanceState()
                         if (tab == GalleryTab.PHOTON) {
@@ -1532,7 +1531,7 @@ private class GalleryPhotoItemView(context: Context) : FrameLayout(context) {
 
         setMeasuredDimension(width, height)
 
-        val isRotated = OrientationObserver.isLandscape
+        val isRotated = false
         val childWidth: Int
         val childHeight: Int
 
@@ -1576,11 +1575,7 @@ private class GalleryPhotoItemView(context: Context) : FrameLayout(context) {
 private fun Bitmap.galleryBitmapAspectRatio(): Float {
     val resolvedWidth = width.takeIf { it > 0 } ?: return 1f
     val resolvedHeight = height.takeIf { it > 0 } ?: return 1f
-    return if (OrientationObserver.isLandscape) {
-        resolvedHeight.toFloat() / resolvedWidth.toFloat()
-    } else {
-        resolvedWidth.toFloat() / resolvedHeight.toFloat()
-    }
+    return resolvedWidth.toFloat() / resolvedHeight.toFloat()
 }
 
 private fun MediaData.isSystemRawImage(): Boolean {
