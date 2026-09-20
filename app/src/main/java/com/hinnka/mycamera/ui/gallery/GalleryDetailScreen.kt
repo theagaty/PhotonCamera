@@ -79,7 +79,6 @@ import com.hinnka.mycamera.lut.VideoExportOption
 import com.hinnka.mycamera.lut.VideoExportResolution
 import com.hinnka.mycamera.lut.VideoExportSupport
 import com.hinnka.mycamera.lut.VideoLutEffect
-import com.hinnka.mycamera.ui.camera.autoRotate
 import com.hinnka.mycamera.ui.components.CustomSlider
 import com.hinnka.mycamera.ui.components.PaymentDialog
 import com.hinnka.mycamera.ui.components.PhysicalButton
@@ -432,7 +431,7 @@ fun GalleryDetailScreen(
                 },
                 navigationIcon = {
                     if (!isExpanded) {
-                        IconButton(onClick = onBack, modifier = Modifier.autoRotate()) {
+                        IconButton(onClick = onBack, modifier = Modifier) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                                 contentDescription = stringResource(R.string.back),
@@ -481,7 +480,7 @@ fun GalleryDetailScreen(
                                 }
                             },
                             enabled = !isRefreshing,
-                            modifier = Modifier.autoRotate()
+                            modifier = Modifier
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Refresh,
@@ -496,7 +495,7 @@ fun GalleryDetailScreen(
                         }
                     }
                     if (!isCurrentPhotoProcessing && currentPhoto != null && currentPhoto.isImage && currentPhoto.isBurstPhoto) {
-                        IconButton(onClick = { onViewBurst?.invoke(currentPhoto.id) }, modifier = Modifier.autoRotate()) {
+                        IconButton(onClick = { onViewBurst?.invoke(currentPhoto.id) }, modifier = Modifier) {
                             Icon(
                                 imageVector = AppIcons.BurstMode,
                                 contentDescription = "查看连拍照片", // 连拍照片
@@ -525,7 +524,7 @@ fun GalleryDetailScreen(
                             )
                         }
                     }
-                    IconButton(onClick = { showInfoDialog = true }, enabled = !isCurrentPhotoProcessing, modifier = Modifier.autoRotate()) {
+                    IconButton(onClick = { showInfoDialog = true }, enabled = !isCurrentPhotoProcessing, modifier = Modifier) {
                         Icon(
                             imageVector = Icons.Default.Info,
                             contentDescription = stringResource(if (currentPhoto?.isVideo == true) R.string.video_info else R.string.photo_info),
@@ -1942,7 +1941,7 @@ private fun GalleryCircleActionButton(
                 tint = GalleryToolbarContent,
                 modifier = Modifier
                     .size(18.dp)
-                    .autoRotate()
+
             )
         }
     }
@@ -1974,7 +1973,7 @@ private fun GalleryGroupedActionButton(
                 tint = GalleryToolbarContent.copy(alpha = if (enabled) 1f else 0.38f),
                 modifier = Modifier
                     .size(18.dp)
-                    .autoRotate()
+
             )
         }
     }
@@ -2282,12 +2281,12 @@ private fun VideoDetailPlayer(
                 it.setShowBuffering(PlayerView.SHOW_BUFFERING_NEVER)
                 it.isVisible = true
             },
-            modifier = modifier.autoRotate(matchParentSize = true)
+            modifier = modifier
         )
     } else {
         // Show video thumbnail with a play icon when player is not active
         Box(
-            modifier = modifier.autoRotate(matchParentSize = true),
+            modifier = modifier,
             contentAlignment = Alignment.Center
         ) {
             val transformation = remember(photo) {
@@ -2419,7 +2418,7 @@ private fun ZoomableImage(
                 contentScale = ContentScale.Fit,
                 state = zoomableState,
                 onDoubleClick = DoubleClickToZoomListener.cycle(maxZoomFactor = 3f),
-                modifier = Modifier.fillMaxSize().autoRotate(matchParentSize = true)
+                modifier = Modifier.fillMaxSize()
             )
         }
 
@@ -2436,7 +2435,7 @@ private fun ZoomableImage(
                 contentDescription = displayPhoto.displayName,
                 contentScale = ContentScale.Fit,
                 state = zoomableState,
-                modifier = Modifier.fillMaxSize().alpha(hdrAlpha).autoRotate(matchParentSize = true)
+                modifier = Modifier.fillMaxSize().alpha(hdrAlpha)
             )
         }
 
@@ -2606,6 +2605,6 @@ fun MotionPhotoPlayer(
             it.isVisible = true
             it.alpha = if (isPlaying && isReadyToShow) 1f else 0f
         },
-        modifier = modifier.autoRotate(matchParentSize = true)
+        modifier = modifier
     )
 }
