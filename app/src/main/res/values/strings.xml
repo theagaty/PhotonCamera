@@ -280,6 +280,10 @@
     <string name="morph_level_fine">Fine</string>
     <string name="settings_use_jpg_max">Multi-frame denoise</string>
     <string name="settings_use_raw_max">HDR+</string>
+    <string name="morph_rawmax_enabled">HDR+ / RAWmax</string>
+    <string name="morph_rawmax_enabled_description">Off: Classic single-frame CFA/Bayer DNG. On: multi-frame Pro RAW using the selected Sabre or Spatial pipeline.</string>
+    <string name="morph_classic_raw_active">Classic CFA RAW is active</string>
+    <string name="morph_classic_raw_active_description">Photon captures one RAW sensor frame and saves the Bayer/CFA mosaic instead of entering the multi-frame RAWmax pipeline.</string>
     <string name="settings_raw_max_spatial_mode">HDR+ merge mode</string>
     <string name="settings_raw_max_spatial_mode_description">Spatial supports bracket exposure to preserve highlight and shadow detail. Sabre merges same-exposure frames for noise reduction and disables bracket exposure.</string>
     <string name="settings_raw_max_mode_sabre">Sabre</string>
