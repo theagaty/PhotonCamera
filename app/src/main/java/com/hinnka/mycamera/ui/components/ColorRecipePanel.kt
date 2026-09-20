@@ -642,7 +642,7 @@ private fun basicDisplayValue(control: BasicRecipeControl, rawValue: Float): Flo
     BasicRecipeControl.EXPOSURE -> RecipeParam.EXPOSURE.clamp(rawValue)
     else -> {
         val param = control.effectType?.recipeParam ?: checkNotNull(control.recipeParam)
-        param.toDisplayValue(rawValue).roundToInt().toFloat()
+        param.toDisplayValue(rawValue)
     }
 }
 
@@ -699,8 +699,11 @@ private fun formatBasicDisplayValue(control: BasicRecipeControl, value: Float): 
     if (control == BasicRecipeControl.EXPOSURE) {
         return formatExposureValue(value)
     }
-    val intVal = value.roundToInt()
-    return if (intVal > 0 && basicDisplayRange(control).start < 0f) "+$intVal" else "$intVal"
+    return if (basicDisplayRange(control).start < 0f) {
+        String.format(Locale.getDefault(), "%+.2f", value)
+    } else {
+        String.format(Locale.getDefault(), "%.2f", value)
+    }
 }
 
 private fun formatExposureValue(value: Float): String {
@@ -989,37 +992,16 @@ private fun BasicRecipeAdjuster(
             )
         }
 
-        if (control == BasicRecipeControl.EXPOSURE) {
-            RecipeScaleRuler(
-                values = exposureSteps,
-                currentValue = displayValue,
-                onValueChange = onDisplayValueChange,
-                onDoubleTap = onReset,
-                accentColor = accent,
-                isMajorTick = { abs(it - round(it)) < 0.05f },
-                zeroValue = 0.0f,
-                height = 34.dp,
-                modifier = Modifier.fillMaxWidth()
-            )
-        } else {
-            val isSigned = range.start < 0f
-            val rulerValues = if (isSigned) {
-                (-10..10).map { it.toFloat() }
-            } else {
-                (0..10).map { it.toFloat() }
-            }
-            RecipeScaleRuler(
-                values = rulerValues,
-                currentValue = displayValue.roundToInt().toFloat(),
-                onValueChange = onDisplayValueChange,
-                onDoubleTap = onReset,
-                accentColor = accent,
-                isMajorTick = { if (isSigned) it.toInt() % 5 == 0 else it.toInt() == 0 || it.toInt() == 5 || it.toInt() == 10 },
-                zeroValue = 0f,
-                height = 34.dp,
-                modifier = Modifier.fillMaxWidth()
-            )
-        }
+        CustomSlider(
+            value = displayValue.coerceIn(range.start, range.endInclusive),
+            onValueChange = onDisplayValueChange,
+            onDoubleTap = onReset,
+            valueRange = range,
+            activeTrackColor = accent,
+            inactiveTrackColor = Color.White.copy(alpha = 0.16f),
+            thumbColor = Color.White,
+            modifier = Modifier.fillMaxWidth()
+        )
     }
 }
 
@@ -1185,14 +1167,13 @@ private fun RecipeIntegerParamItem(
 ) {
     val displayRange = param.displayValueRange()
     val isSigned = displayRange.start < 0f
-    val currentInt = param.toDisplayValue(value).roundToInt()
+    val displayValue = param.toDisplayValue(value)
     val accent = getParamColor(param)
     val haptic = LocalHapticFeedback.current
-
-    val rulerValues = if (isSigned) {
-        (-10..10).map { it.toFloat() }
-    } else {
-        (0..10).map { it.toFloat() }
+    val displayText = when {
+        param == RecipeParam.EXPOSURE -> formatExposureValue(displayValue)
+        isSigned -> String.format(Locale.getDefault(), "%+.2f", displayValue)
+        else -> String.format(Locale.getDefault(), "%.2f", displayValue)
     }
 
     Column(
@@ -1209,7 +1190,7 @@ private fun RecipeIntegerParamItem(
                 )
             }
             .padding(horizontal = 10.dp, vertical = 5.dp),
-        verticalArrangement = Arrangement.spacedBy(1.dp)
+        verticalArrangement = Arrangement.spacedBy(3.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -1235,7 +1216,7 @@ private fun RecipeIntegerParamItem(
             }
 
             Text(
-                text = formatIntegerDisplayValue(currentInt, isSigned),
+                text = displayText,
                 color = accent,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Bold,
@@ -1243,19 +1224,18 @@ private fun RecipeIntegerParamItem(
             )
         }
 
-        RecipeScaleRuler(
-            values = rulerValues,
-            currentValue = currentInt.toFloat(),
-            onValueChange = { selectedDisplayVal ->
-                onValueChange(param.fromDisplayValue(selectedDisplayVal))
+        CustomSlider(
+            value = displayValue.coerceIn(displayRange.start, displayRange.endInclusive),
+            onValueChange = { selectedDisplayValue ->
+                onValueChange(param.fromDisplayValue(selectedDisplayValue))
             },
             onDoubleTap = {
                 onValueChange(param.defaultValue)
             },
-            accentColor = accent,
-            isMajorTick = { if (isSigned) it.toInt() % 5 == 0 else it.toInt() == 0 || it.toInt() == 5 || it.toInt() == 10 },
-            zeroValue = 0f,
-            height = 22.dp,
+            valueRange = displayRange,
+            activeTrackColor = accent,
+            inactiveTrackColor = Color.White.copy(alpha = 0.16f),
+            thumbColor = Color.White,
             modifier = Modifier.fillMaxWidth()
         )
     }
