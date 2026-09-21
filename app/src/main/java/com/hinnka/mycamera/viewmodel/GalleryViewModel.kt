@@ -345,6 +345,9 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
     private val _canResetEdit = MutableStateFlow(false)
     val canResetEdit = _canResetEdit.asStateFlow()
 
+    private val _canRevertToOriginal = MutableStateFlow(false)
+    val canRevertToOriginal = _canRevertToOriginal.asStateFlow()
+
     // LUT 编辑状态
     var editLutId = MutableStateFlow<String?>(null)
         private set
@@ -1538,6 +1541,8 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
         val photo = getCurrentPhoto()
         currentPhotoMetadataId = photo?.id
         currentMediaMetadata = metadata
+        _canRevertToOriginal.value =
+            photo?.isVideo != true && GalleryManager.hasRevertBaseline(metadata)
         metadata?.let { m ->
             editLutId.value = m.lutId
             editFrameId.value = m.frameId
@@ -2187,6 +2192,23 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
             applyMetadataToEditState(metadata)
         }
 
+        if (!targetPhoto.isVideo) {
+            val baselineTargetPhoto = targetPhoto.relatedPhoto ?: targetPhoto
+            val baselineMetadata = runBlocking {
+                withContext(Dispatchers.IO) {
+                    GalleryManager.ensureRevertBaseline(
+                        getApplication(),
+                        baselineTargetPhoto.id,
+                    )
+                }
+            }
+            if (baselineMetadata != null) {
+                baselineTargetPhoto.metadata = baselineMetadata
+                currentMediaMetadata = baselineMetadata
+                _canRevertToOriginal.value = true
+            }
+        }
+
         isEditing = true
         editSyncAdjustmentsToLut = false
         independentEditPhotoRecipeParams = ColorRecipeParams.DEFAULT
@@ -2664,6 +2686,7 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
         }
         isEditing = false
         clearEditHistory()
+        _canRevertToOriginal.value = false
         editVideoSourceProfile = null
         editVideoProfileDetected = false
         editVideoProfileOverride = null
@@ -4214,6 +4237,59 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
                 PLog.e(TAG, "Failed to save metadata", e)
                 onComplete(false)
             }
+        }
+    }
+
+    /**
+     * Permanently discards this Photon photo's saved edit/development state and restores the
+     * capture-time baseline. Exported phone-gallery copies are never touched.
+     */
+    fun revertCurrentPhotoToOriginal(onComplete: (Boolean) -> Unit = {}) {
+        val visiblePhoto = getCurrentPhoto()
+        if (visiblePhoto == null || visiblePhoto.isVideo) {
+            onComplete(false)
+            return
+        }
+        val targetPhoto = visiblePhoto.relatedPhoto ?: visiblePhoto
+
+        viewModelScope.launch {
+            val context = getApplication<Application>()
+            val restored = GalleryManager.revertPhotoToOriginal(
+                context = context,
+                photoId = targetPhoto.id,
+                photoProcessor = contentRepository.photoProcessor,
+            )
+            if (restored == null) {
+                onComplete(false)
+                return@launch
+            }
+
+            targetPhoto.metadata = restored
+            visiblePhoto.relatedPhoto?.metadata = restored
+            if (visiblePhoto.id == targetPhoto.id) {
+                visiblePhoto.metadata = restored
+            }
+            _photos.update { current ->
+                current.map { photo ->
+                    if (photo.id == targetPhoto.id) photo.withMetadataSnapshot(restored) else photo
+                }
+            }
+            _latestPhoto.update { latest ->
+                if (latest?.id == targetPhoto.id) latest.withMetadataSnapshot(restored) else latest
+            }
+
+            currentMediaMetadata = restored
+            currentPhotoMetadataId = visiblePhoto.id
+            photoRefreshKeys[targetPhoto.id] = System.currentTimeMillis()
+            invalidatePreviewCache(targetPhoto.id)
+
+            // Re-enter the same editor screen so all controls and the session baseline are rebuilt
+            // from the restored capture state. This also makes Reset All grey again immediately.
+            exitEditMode()
+            currentMediaMetadata = restored
+            currentPhotoMetadataId = visiblePhoto.id
+            enterEditMode()
+            onComplete(true)
         }
     }
 

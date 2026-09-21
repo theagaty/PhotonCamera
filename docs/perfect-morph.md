@@ -59,3 +59,15 @@ Built on the stable Stage 2 RAW foundation.
 - LUT, color recipe, frame selection, detail controls, RAW controls, bokeh parameters, crop, straighten, rotation and mirror state participate in history.
 - Capture code, Classic CFA routing, HDR+/RAWmax, DNG persistence, Sabre and Spatial processing are untouched.
 
+
+## Persistent Revert to Original
+
+- Separate from session-only Reset All.
+- A capture-time edit/development baseline is frozen after every successful new Photon capture.
+- The baseline is stored with the private Photon photo and survives app restarts.
+- Revert restores saved LUT/recipe/frame/detail/RAW/bokeh/geometry state from that baseline.
+- RAW Revert regenerates Photon's internal preview from the untouched DNG after restoring capture-time RAW metadata.
+- AI-denoise/bokeh/detail-HDR derivative files are invalidated as part of Revert.
+- Exported system-gallery copies are never deleted, overwritten or modified; exportedUris remain on the live photo record.
+- After Revert, the editor session is rebuilt from the restored capture state, so Reset All returns to disabled until new edits are made.
+- Legacy photos created before this feature did not have a historical capture baseline; the first state seen by this build is preserved safely as their baseline.

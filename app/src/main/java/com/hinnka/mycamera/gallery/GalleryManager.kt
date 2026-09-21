@@ -414,6 +414,10 @@ object GalleryManager {
             if (!saved && getOriginalImageFile(context, photoId) == null && getDngFile(context, photoId).length() == 0L) {
                 GalleryMediaStore.deleteMedia(context, photoId)
                 getPhotoDir(context, photoId).deleteRecursively()
+            } else if (saved) {
+                // Freeze the exact capture-time edit/development state before future edits can
+                // overwrite RAW preview metadata. This survives app restarts.
+                ensureRevertBaseline(context, photoId)
             }
         }
         _processingPhotos.update { it - photoId }
@@ -5097,6 +5101,80 @@ object GalleryManager {
      */
     suspend fun deletePhotoOnly(context: Context, photoId: String): Boolean {
         return deletePhoto(context, photoId)
+    }
+
+    fun hasRevertBaseline(metadata: MediaMetadata?): Boolean {
+        return MorphRevertBaseline.hasBaseline(metadata)
+    }
+
+    /**
+     * Ensures one immutable capture/edit baseline exists for this Photon photo.
+     *
+     * New captures get this in finishProcessingPhoto(). Older library entries receive a safe
+     * first-seen baseline when they are first opened in the editor after this feature exists.
+     */
+    suspend fun ensureRevertBaseline(context: Context, photoId: String): MediaMetadata? {
+        val current = loadMetadata(context, photoId) ?: return null
+        if (MorphRevertBaseline.hasBaseline(current)) return current
+
+        val encoded = MorphRevertBaseline.encode(current)
+        val updated = current.copy(
+            customProperties = current.customProperties + (
+                MorphRevertBaseline.CUSTOM_PROPERTY_KEY to encoded
+            )
+        )
+        return if (saveMetadata(context, photoId, updated)) updated else null
+    }
+
+    /**
+     * Master reset for one Photon gallery photo.
+     *
+     * Exported copies are intentionally untouched. exportedUris and source/capture identity remain
+     * on the live metadata record; only edit/development state is restored from the capture
+     * baseline. RAW photos are then re-rendered from the untouched DNG.
+     */
+    suspend fun revertPhotoToOriginal(
+        context: Context,
+        photoId: String,
+        photoProcessor: PhotoProcessor,
+    ): MediaMetadata? = withContext(Dispatchers.IO) {
+        val current = loadMetadata(context, photoId) ?: return@withContext null
+        val encoded = current.customProperties[MorphRevertBaseline.CUSTOM_PROPERTY_KEY]
+            ?: return@withContext null
+        val restored = MorphRevertBaseline.restore(current, encoded)
+            ?: return@withContext null
+
+        if (!saveMetadata(context, photoId, restored)) return@withContext null
+
+        val photoDir = getPhotoDir(context, photoId, true)
+        File(photoDir, AI_DENOISE_FILE).takeIf { it.exists() }?.delete()
+        File(photoDir, BOKEH_FILE).takeIf { it.exists() }?.delete()
+        deleteDetailHdrFile(context, photoId)
+
+        val dngFile = File(photoDir, DNG_FILE)
+        if (dngFile.exists() && dngFile.length() > 0L) {
+            val bitmap = refreshRawPreview(
+                context = context,
+                photoId = photoId,
+                forceRegeneratePhotonPgtm = false,
+            )
+            if (bitmap == null) {
+                PLog.e(TAG, "Revert failed to regenerate RAW preview for $photoId")
+                return@withContext null
+            }
+            if (!bitmap.isRecycled) bitmap.recycle()
+        } else {
+            updateThumbnail(
+                context = context,
+                photoId = photoId,
+                photoProcessor = photoProcessor,
+                metadata = restored,
+            )
+        }
+
+        val finalMetadata = loadMetadata(context, photoId) ?: restored
+        notifyPhotoLibraryChanged()
+        finalMetadata
     }
 
     /**

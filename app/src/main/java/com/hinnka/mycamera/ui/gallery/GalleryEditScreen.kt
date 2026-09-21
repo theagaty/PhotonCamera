@@ -230,9 +230,12 @@ fun GalleryEditScreen(
     val canUndoEdit by viewModel.canUndoEdit.collectAsState()
     val canRedoEdit by viewModel.canRedoEdit.collectAsState()
     val canResetEdit by viewModel.canResetEdit.collectAsState()
+    val canRevertToOriginal by viewModel.canRevertToOriginal.collectAsState()
     val editApplyEffectsToVideo by viewModel.editApplyEffectsToVideo.collectAsState()
 
     var isSaving by remember { mutableStateOf(false) }
+    var isRevertingToOriginal by remember { mutableStateOf(false) }
+    var showRevertToOriginalDialog by remember { mutableStateOf(false) }
     var isLoadingPreview by remember { mutableStateOf(false) }
     var showMoreMenu by remember { mutableStateOf(false) }
     var showImageHistogram by remember { mutableStateOf(false) }
@@ -1364,6 +1367,23 @@ fun GalleryEditScreen(
                                             )
                                         }
                                     )
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.edit_revert_original)) },
+                                        onClick = {
+                                            showMoreMenu = false
+                                            showRevertToOriginalDialog = true
+                                        },
+                                        enabled = canRevertToOriginal &&
+                                            !isSaving &&
+                                            !isRevertingToOriginal &&
+                                            !isRefreshingRawPreview,
+                                        leadingIcon = {
+                                            Icon(
+                                                imageVector = AppIcons.RestartAlt,
+                                                contentDescription = null
+                                            )
+                                        }
+                                    )
                                 }
                             }
                         },
@@ -2068,6 +2088,55 @@ fun GalleryEditScreen(
             },
             onDismiss = {
                 showRawBaselineLutSelectorSheet = false
+            }
+        )
+    }
+
+    if (showRevertToOriginalDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                if (!isRevertingToOriginal) showRevertToOriginalDialog = false
+            },
+            title = {
+                Text(stringResource(R.string.edit_revert_original_title))
+            },
+            text = {
+                Text(stringResource(R.string.edit_revert_original_message))
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !isRevertingToOriginal,
+                    onClick = {
+                        isRevertingToOriginal = true
+                        viewModel.revertCurrentPhotoToOriginal { success ->
+                            isRevertingToOriginal = false
+                            if (success) {
+                                showRevertToOriginalDialog = false
+                                Toast.makeText(
+                                    context,
+                                    R.string.edit_revert_original_success,
+                                    Toast.LENGTH_SHORT,
+                                ).show()
+                            } else {
+                                Toast.makeText(
+                                    context,
+                                    R.string.edit_revert_original_failed,
+                                    Toast.LENGTH_SHORT,
+                                ).show()
+                            }
+                        }
+                    }
+                ) {
+                    Text(stringResource(R.string.edit_revert_original_confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    enabled = !isRevertingToOriginal,
+                    onClick = { showRevertToOriginalDialog = false }
+                ) {
+                    Text(stringResource(android.R.string.cancel))
+                }
             }
         )
     }

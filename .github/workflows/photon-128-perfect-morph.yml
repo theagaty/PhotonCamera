@@ -36,6 +36,10 @@ jobs:
           grep -q 'fun redoEdit' app/src/main/java/com/hinnka/mycamera/viewmodel/GalleryViewModel.kt
           grep -q 'fun resetAllEdits' app/src/main/java/com/hinnka/mycamera/viewmodel/GalleryViewModel.kt
           grep -q 'edit_reset_all' app/src/main/java/com/hinnka/mycamera/ui/gallery/GalleryEditScreen.kt
+          grep -q 'fun revertCurrentPhotoToOriginal' app/src/main/java/com/hinnka/mycamera/viewmodel/GalleryViewModel.kt
+          grep -q 'suspend fun revertPhotoToOriginal' app/src/main/java/com/hinnka/mycamera/gallery/GalleryManager.kt
+          grep -q 'perfectMorph.revertBaseline.v1' app/src/main/java/com/hinnka/mycamera/gallery/MorphRevertBaseline.kt
+          grep -q 'edit_revert_original' app/src/main/java/com/hinnka/mycamera/ui/gallery/GalleryEditScreen.kt
           git show --check --oneline --no-patch HEAD
 
       - name: Set up JDK 17
