@@ -2282,35 +2282,36 @@ object GalleryManager {
         exportDngWithRawExport: Boolean = false,
         capturePortraitMask: PortraitMaskSnapshot? = null,
     ) = withContext(Dispatchers.IO + DngCaptureDiagnostics.context(photoId)) {
-        var rawBufferToRelease: ByteBuffer? = null
+        var previewRawBufferToRelease: ByteBuffer? = null
         var preparedDemosaicSourceToRelease: GpuDemosaicedRawSource? = null
-        DngCaptureDiagnostics.put("pipeline", "SINGLE_FRAME_RAW")
+        DngCaptureDiagnostics.put("pipeline", "CLASSIC_CFA_1271_FINAL")
         DngCaptureDiagnostics.put("capture.sourceSize", "${image.width}x${image.height}")
         DngCaptureDiagnostics.put("capture.rotation", rotation)
         DngCaptureDiagnostics.put("capture.frameCount", 1)
+        DngCaptureDiagnostics.put("capture.physicalRawCrop.master", false)
+        DngCaptureDiagnostics.put("capture.previewProxy", true)
+        DngCaptureDiagnostics.put("capture.aeCompensationEv", captureExposureCompensationEv)
         try {
             val photoDir = getPhotoDir(context, photoId, true)
-
-            // 预先准备所有文件路径
             val photoFile = File(photoDir, PHOTO_FILE)
             val dngFile = File(photoDir, DNG_FILE)
+            val renderProxyDngFile = File(photoDir, CLASSIC_RENDER_DNG_FILE)
             val tempDngFile = File(photoDir, "temp.dng")
+            val tempRenderProxyDngFile = File(photoDir, "temp_classic_render.dng")
             val tempFile = File(photoDir, "temp.jpg")
 
             val metadata = loadMetadata(context, photoId)
             if (metadata == null) {
-                PLog.e(TAG, "saveRawPhoto aborted: metadata unavailable for $photoId")
-                image.close()
+                PLog.e(TAG, "Classic CFA save aborted: metadata unavailable for $photoId")
                 return@withContext
             }
-
             val resolvedCaptureResult = captureResult
-            DngCaptureDiagnostics.put("capture.cameraId", metadata.cameraId)
             if (resolvedCaptureResult == null) {
-                PLog.e(TAG, "saveRawPhoto aborted: captureResult unavailable for $photoId")
-                image.close()
+                PLog.e(TAG, "Classic CFA save aborted: captureResult unavailable for $photoId")
                 return@withContext
             }
+            DngCaptureDiagnostics.put("capture.cameraId", metadata.cameraId)
+
             val mainFlashFired = didMainFlashFire(resolvedCaptureResult)
             val dngThumbnail = thumbnail.takeUnless { mainFlashFired }
             val sourceRawWidth = image.width
@@ -2318,39 +2319,45 @@ object GalleryManager {
             if (mainFlashFired && thumbnail != null) {
                 PLog.i(
                     TAG,
-                    "RAW flash capture: ignoring the unflashed preview thumbnail for " +
-                        "DNG embedding and capture-scene exposure estimation"
+                    "Classic CFA flash capture: ignoring unflashed preview thumbnail for " +
+                        "DNG embedding/exposure preparation",
                 )
             }
 
             val captureInfo = metadata.toCaptureInfo()
+
+            // ---------------- Photon render proxy: proven current v1.28 path ----------------
             val physicalRawCrop = RawProcessor.resolveCameraRawPhysicalCrop(
                 width = sourceRawWidth,
                 height = sourceRawHeight,
                 characteristics = characteristics,
                 captureResult = resolvedCaptureResult,
             )
-            val rawWidth = physicalRawCrop.width
-            val rawHeight = physicalRawCrop.height
-            val rawDngDefaultCrop = physicalRawCrop.outputBounds
-            val blackBorderDefaultCrop = RawDefaultCropOverride.resolveRawBlackBorderDefaultCrop(
-                width = rawWidth,
-                height = rawHeight,
-                rawBlackBorderCrop = metadata.rawBlackBorderCrop,
-                metadataDefaultCrop = rawDngDefaultCrop,
-            ) ?: rawDngDefaultCrop
-            val processingRawBounds = RawDefaultCropOverride.resolveOutputSourceBounds(
-                width = rawWidth,
-                height = rawHeight,
-                aspectRatio = aspectRatio,
-                // CaptureResult's zoom crop has already been physically removed above.
-                userCrop = null,
-                metadataDefaultCrop = blackBorderDefaultCrop,
-            )
+            val previewRawWidth = physicalRawCrop.width
+            val previewRawHeight = physicalRawCrop.height
+            val previewDefaultCrop = physicalRawCrop.outputBounds
+            val previewBlackBorderCrop =
+                RawDefaultCropOverride.resolveRawBlackBorderDefaultCrop(
+                    width = previewRawWidth,
+                    height = previewRawHeight,
+                    rawBlackBorderCrop = metadata.rawBlackBorderCrop,
+                    metadataDefaultCrop = previewDefaultCrop,
+                ) ?: previewDefaultCrop
+            val previewProcessingBounds =
+                RawDefaultCropOverride.resolveOutputSourceBounds(
+                    width = previewRawWidth,
+                    height = previewRawHeight,
+                    aspectRatio = aspectRatio,
+                    userCrop = null,
+                    metadataDefaultCrop = previewBlackBorderCrop,
+                )
+
             var updatedMetadata: MediaMetadata = metadata.copy(
                 cropRegion = null,
                 customProperties = RawDigitalZoomResampling.resolveCaptureProperties(
-                    metadata.customProperties, physicalRawCrop, metadata.rawBlackBorderCrop,
+                    metadata.customProperties,
+                    physicalRawCrop,
+                    metadata.rawBlackBorderCrop,
                 ),
             )
             val rawSharpening = updatedMetadata.sharpening
@@ -2358,7 +2365,8 @@ object GalleryManager {
             val rawNoiseReduction = resolveNoiseReduction(updatedMetadata, noiseReductionValue)
             val rawChromaNoiseReduction = updatedMetadata.chromaNoiseReduction
                 ?: ChromaDenoiseDefaults.forRawCapture(chromaNoiseReductionValue)
-            val sourceRawMetadata = RawMetadata.create(
+
+            val previewSourceMetadata = RawMetadata.create(
                 width = sourceRawWidth,
                 height = sourceRawHeight,
                 characteristics = characteristics,
@@ -2552,7 +2560,8 @@ object GalleryManager {
                 rawBlackBorderCrop = updatedMetadata.rawBlackBorderCrop,
                 rawOutputScale = RawOutputScaling.read(updatedMetadata.customProperties),
                 rawOutputUpscaleMode = updatedMetadata.rawOutputUpscaleMode,
-                rawPhysicalOutputSize = RawDigitalZoomResampling.readPhysicalSize(updatedMetadata.customProperties),
+                rawPhysicalOutputSize =
+                    RawDigitalZoomResampling.readPhysicalSize(updatedMetadata.customProperties),
                 spectralFilmStock = updatedMetadata.spectralFilmStock,
                 spectralFilmPrint = updatedMetadata.spectralFilmPrint,
                 spectralFilmTuning = SpectralFilmTuning(
@@ -2561,133 +2570,108 @@ object GalleryManager {
                     yDensityGain = updatedMetadata.spectralFilmYDensityGain,
                 ),
                 onMetadata = { raw -> updatedMetadata = updatedMetadata.merge(raw) },
-            )
+            ) ?: return@withContext
 
-            val directBufferCompatible = RawProcessor.canRenderDngBufferDirectly(
-                width = rawWidth,
-                height = rawHeight,
+            if (!persistRenderProxyDng()) {
+                rawResult.hdrReferenceBitmap?.let { hdrBitmap ->
+                    if (hdrBitmap !== rawResult.sdrBitmap && !hdrBitmap.isRecycled) {
+                        hdrBitmap.recycle()
+                    }
+                }
+                if (!rawResult.sdrBitmap.isRecycled) rawResult.sdrBitmap.recycle()
+                return@withContext
+            }
+
+            // ---------------- Full-sensor external/master DNG ----------------
+            val masterDefaultCrop = RawProcessor.resolveCameraRawDefaultCrop(
+                width = sourceRawWidth,
+                height = sourceRawHeight,
+                characteristics = characteristics,
+                captureResult = resolvedCaptureResult,
+            )
+            val writtenMasterDefaultCrop =
+                RawDefaultCropOverride.resolveRawBlackBorderDefaultCrop(
+                    width = sourceRawWidth,
+                    height = sourceRawHeight,
+                    rawBlackBorderCrop = metadata.rawBlackBorderCrop,
+                    metadataDefaultCrop = masterDefaultCrop,
+                ) ?: masterDefaultCrop
+            val masterProfileOptions = classicCfaDngProfilePreparationOptions(
+                context = context,
+                metadata = metadata,
+                width = sourceRawWidth,
+                height = sourceRawHeight,
+                defaultCrop = masterDefaultCrop,
+                aspectRatio = aspectRatio,
+                rotation = rotation,
+                capturePreviewThumbnail = dngThumbnail,
                 characteristics = characteristics,
             )
-            val renderMetadata = if (directBufferCompatible) {
-                RawProcessor.buildCfaDngRenderMetadata(
-                    width = rawWidth,
-                    height = rawHeight,
-                    characteristics = characteristics,
-                    captureResult = resolvedCaptureResult,
-                    sourceMetadata = sourceRawMetadata,
-                    defaultCrop = processingRawBounds,
-                    rotation = rotation,
-                    profilePreparation = preparedProfile,
-                    blackLevelMode = metadata.rawBlackLevelMode,
-                    customBlackLevel = metadata.rawCustomBlackLevel,
-                    whiteLevelMode = metadata.rawWhiteLevelMode,
-                    customWhiteLevel = metadata.rawCustomWhiteLevel,
-                    cfaCorrectionMode = metadata.rawCfaCorrectionMode,
-                )
-            } else {
-                null
-            }
-            val embeddedRenderPlan = renderMetadata?.let { preparedMetadata ->
-                SuperResolutionDngWriter.resolveEmbeddedRenderPlan(
-                    characteristics = characteristics,
-                    metadata = preparedMetadata,
-                    imageLayout = SuperResolutionDngWriter.ImageLayout.CFA,
-                    // Mirror the profile which saveRawBufferToDng will serialize. Passing null
-                    // here made the first in-memory render resolve DefaultBlackRender=Auto even
-                    // though its final metadata already contained a ProfileGainTableMap and the
-                    // persisted DNG correctly wrote DefaultBlackRender=None.
-                    profileGainTableMap = preparedMetadata.profileGainTableMap,
-                    profileToneCurve = null,
-                )
-            }
-            val inMemoryResult = if (renderMetadata != null && embeddedRenderPlan != null) {
-                processor.processDngBufferForHdrSources(
-                    context = context,
-                    includeHdrReference = updatedMetadata.manualHdrEffectEnabled,
-                    photonHdrRatio = preparedProfile.hdrRatio,
-                    photonSourceToShortGain = preparedProfile.finalShortGain,
-                    photonHdrNetPostExposureEv = preparedProfile.hdrNetPostExposureEv,
-                    photonHdrNetInputExposureEv = preparedProfile.hdrNetInputExposureEv,
-                    rawData = rawBuffer.duplicate(),
-                    width = rawWidth,
-                    height = rawHeight,
-                    rowStride = rawWidth * Short.SIZE_BYTES,
-                    samplesPerPixel = 1,
-                    gpuDemosaicedRawSource = preparedProfile.gpuDemosaicedRawSource,
-                    metadata = renderMetadata,
-                    aspectRatio = aspectRatio,
-                    cropRegion = null,
-                    rotation = rotation,
-                    exposureBias = exposureBias ?: 0f,
-                    rawExposureCompensation = updatedMetadata.rawExposureCompensation ?: 0f,
-                    rawHighlightsAdjustment = updatedMetadata.rawHighlightsAdjustment ?: 0f,
-                    rawShadowsAdjustment = updatedMetadata.rawShadowsAdjustment ?: 0f,
-                    rawBlackPointCorrection = updatedMetadata.rawBlackPointCorrection ?: 0f,
-                    rawWhitePointCorrection = updatedMetadata.rawWhitePointCorrection ?: 0f,
-                    applyLensShadingCorrection = resolveRawLensShadingCorrectionEnabled(context, updatedMetadata),
-                    rawBlackLevelMode = updatedMetadata.rawBlackLevelMode,
-                    rawCustomBlackLevel = updatedMetadata.rawCustomBlackLevel,
-                    rawWhiteLevelMode = updatedMetadata.rawWhiteLevelMode,
-                    rawCustomWhiteLevel = updatedMetadata.rawCustomWhiteLevel,
-                    sharpeningValue = rawSharpening,
-                    processLocalQualityTuningEnabled =
-                        PhotonSensorSizeTuning.enabledFromProperties(updatedMetadata.customProperties),
-                    processLocalQualityTuningSensorAreaMm2 =
-                        PhotonSensorSizeTuning.areaFromProperties(updatedMetadata.customProperties),
-                    denoiseValue = rawNoiseReduction,
-                    chromaDenoiseValue = rawChromaNoiseReduction,
-                    rawDcpId = updatedMetadata.rawDcpId,
-                    rawEmbeddedDngProfileId = updatedMetadata.rawEmbeddedDngProfileId,
-                    rawNoiseProfileId = resolveRawNoiseProfileId(context, updatedMetadata),
-                    rawHncsProfileId = updatedMetadata.rawHncsProfileId,
-                    rawHncsRenderIntent = updatedMetadata.rawHncsRenderIntent,
-                    rawHncsFilmCurveMode = updatedMetadata.rawHncsFilmCurveMode,
-                    embeddedDngRenderPlan = embeddedRenderPlan,
-                    rawRenderingEngine = updatedMetadata.rawRenderingEngine,
-                    rawToneMappingParameters = updatedMetadata.rawToneMappingParameters,
-                    rawCfaCorrectionMode = updatedMetadata.rawCfaCorrectionMode,
-                    rawBlackBorderCrop = updatedMetadata.rawBlackBorderCrop,
-                    rawOutputScale = RawOutputScaling.read(updatedMetadata.customProperties),
-                    rawOutputUpscaleMode = updatedMetadata.rawOutputUpscaleMode,
-                    rawPhysicalOutputSize = RawDigitalZoomResampling.readPhysicalSize(updatedMetadata.customProperties),
-                    spectralFilmStock = updatedMetadata.spectralFilmStock,
-                    spectralFilmPrint = updatedMetadata.spectralFilmPrint,
-                    spectralFilmTuning = SpectralFilmTuning(
-                        cDensityGain = updatedMetadata.spectralFilmCDensityGain,
-                        mDensityGain = updatedMetadata.spectralFilmMDensityGain,
-                        yDensityGain = updatedMetadata.spectralFilmYDensityGain,
-                    ),
-                    onMetadata = { raw -> updatedMetadata = updatedMetadata.merge(raw) },
-                )
-            } else {
-                null
-            }
-            val rawResult = if (inMemoryResult != null) {
-                PLog.i(TAG, "Single-frame RAW rendered from memory before DNG persistence")
-                if (!persistDng()) {
-                    inMemoryResult.hdrReferenceBitmap?.let { hdrBitmap ->
-                        if (hdrBitmap !== inMemoryResult.sdrBitmap && !hdrBitmap.isRecycled) {
-                            hdrBitmap.recycle()
-                        }
-                    }
-                    if (!inMemoryResult.sdrBitmap.isRecycled) {
-                        inMemoryResult.sdrBitmap.recycle()
-                    }
-                    return@withContext
-                }
-                inMemoryResult
-            } else {
-                PLog.w(TAG, "Single-frame in-memory RAW render unavailable; using persisted DNG fallback")
-                // A source that was not adopted by the direct render has no role in the
-                // persisted-DNG fallback. Release it before decoding to avoid keeping two
-                // full-resolution RGBA16F demosaics alive at the same time.
-                processor.releaseGpuDemosaicedRawSource(preparedDemosaicSourceToRelease)
-                preparedDemosaicSourceToRelease = null
-                if (!persistDng()) return@withContext
-                renderPersistedDng() ?: return@withContext
-            }
-            var bitmap = rawResult.sdrBitmap
 
+            tempDngFile.delete()
+            val masterWritten = try {
+                FileOutputStream(tempDngFile).use { outputStream ->
+                    RawProcessor.saveToDng(
+                        image = image,
+                        characteristics = characteristics,
+                        captureResult = resolvedCaptureResult,
+                        outputStream = outputStream,
+                        rotation = rotation,
+                        thumbnail = dngThumbnail,
+                        blackLevelMode = metadata.rawBlackLevelMode,
+                        customBlackLevel = metadata.rawCustomBlackLevel,
+                        whiteLevelMode = metadata.rawWhiteLevelMode,
+                        customWhiteLevel = metadata.rawCustomWhiteLevel,
+                        cfaCorrectionMode = metadata.rawCfaCorrectionMode,
+                        effectiveFocalLengthMm = captureInfo.focalLength,
+                        effectiveFocalLength35mm = captureInfo.focalLength35mm,
+                        captureInfo = captureInfo,
+                        dngProfilePreparationOptions = masterProfileOptions,
+                        defaultCropOverride = writtenMasterDefaultCrop,
+                    )
+                }
+            } catch (error: Throwable) {
+                PLog.e(TAG, "Classic full-sensor master DNG save failed", error)
+                false
+            }
+
+            val masterReady = masterWritten &&
+                tempDngFile.exists() &&
+                tempDngFile.length() > 0L
+            if (masterReady) {
+                patchSavedDngCorrections(tempDngFile, metadata)
+                if (dngFile.exists()) dngFile.delete()
+                if (!tempDngFile.renameTo(dngFile)) {
+                    tempDngFile.copyTo(dngFile, overwrite = true)
+                    tempDngFile.delete()
+                }
+                DngCaptureDiagnostics.put("capture.masterFallbackToProxy", false)
+                PLog.i(
+                    TAG,
+                    "Classic CFA master persisted full sensor payload: " +
+                        "source=${sourceRawWidth}x${sourceRawHeight} " +
+                        "defaultCrop=$writtenMasterDefaultCrop physicalCrop=false",
+                )
+            } else {
+                tempDngFile.delete()
+                // Never lose the capture because an experimental full-sensor writer path failed.
+                renderProxyDngFile.copyTo(dngFile, overwrite = true)
+                DngCaptureDiagnostics.put("capture.masterFallbackToProxy", true)
+                PLog.w(
+                    TAG,
+                    "Classic full-sensor master failed; preserved capture by promoting " +
+                        "the Stage-2-compatible render proxy to original.dng",
+                )
+            }
+
+            if (shouldAutoSave && exportDngWithRawExport) {
+                if (!exportDng(context, photoId, dngFile, updatedMetadata)) {
+                    PLog.e(TAG, "Classic CFA DNG auto-export failed for photo $photoId")
+                }
+            }
+
+            // ---------------- Photon-owned JPEG/thumbnail from current preview pipeline ----------
+            var bitmap = rawResult.sdrBitmap
             if (updatedMetadata.isMirrored) {
                 bitmap = BitmapUtils.flipHorizontal(bitmap)
             }
@@ -2695,7 +2679,7 @@ object GalleryManager {
                 width = bitmap.width,
                 height = bitmap.height,
                 sharpening = rawSharpening,
-                chromaNoiseReduction = rawChromaNoiseReduction
+                chromaNoiseReduction = rawChromaNoiseReduction,
             )
 
             val jpegWritten = FileOutputStream(tempFile).use { outputStream ->
@@ -2703,40 +2687,57 @@ object GalleryManager {
             }
             if (!jpegWritten) {
                 tempFile.delete()
-                throw IOException("Failed to encode final JPEG for $photoId")
+                throw IOException("Failed to encode Classic CFA preview JPEG for $photoId")
             }
             if (!tempFile.renameTo(photoFile)) {
                 tempFile.delete()
-                throw IOException("Failed to publish final JPEG for $photoId")
+                throw IOException("Failed to publish Classic CFA preview JPEG for $photoId")
             }
+
             saveMetadata(context, photoId, updatedMetadata)
-            markProcessingPhotoDisplayReady(photoId, photoFile, updatedMetadata, isRawSource = true)
-            val bokehBitmap = renderAndSaveBokehPhoto(context, photoId, updatedMetadata, bitmap)
-            val preparedUltraHdrSource = if (updatedMetadata.manualHdrEffectEnabled) {
-                photoProcessor.prepareUltraHdrSourceFromRawResult(
-                    context = context,
-                    photoId = photoId,
-                    rawResult = rawResult,
-                    metadata = updatedMetadata,
-                    sharpening = sharpeningValue,
-                    noiseReduction = noiseReductionValue,
-                    chromaNoiseReduction = chromaNoiseReductionValue,
-                    applyMirror = true,
-                    preparedSdrBitmap = bokehBitmap,
-                )
-            } else {
-                null
-            }
+            markProcessingPhotoDisplayReady(
+                photoId,
+                photoFile,
+                updatedMetadata,
+                isRawSource = true,
+            )
+            val bokehBitmap = renderAndSaveBokehPhoto(
+                context,
+                photoId,
+                updatedMetadata,
+                bitmap,
+            )
+            val preparedUltraHdrSource =
+                if (updatedMetadata.manualHdrEffectEnabled) {
+                    photoProcessor.prepareUltraHdrSourceFromRawResult(
+                        context = context,
+                        photoId = photoId,
+                        rawResult = rawResult,
+                        metadata = updatedMetadata,
+                        sharpening = sharpeningValue,
+                        noiseReduction = noiseReductionValue,
+                        chromaNoiseReduction = chromaNoiseReductionValue,
+                        applyMirror = true,
+                        preparedSdrBitmap = bokehBitmap,
+                    )
+                } else {
+                    null
+                }
             val preparedGainmapResult = preparedUltraHdrSource?.let { source ->
                 var result: GainmapResult? = null
                 val gainmapElapsed = measureTimeMillis {
-                    result = gainmapProducer.build(source, HdrGainmapStrength.coerce(updatedMetadata.hdrEffectStrength))
+                    result = gainmapProducer.build(
+                        source,
+                        HdrGainmapStrength.coerce(updatedMetadata.hdrEffectStrength),
+                    )
                 }
-                PLog.d(TAG, "saveRawPhoto prepared gainmap for reuse, took=${gainmapElapsed}ms")
+                PLog.d(
+                    TAG,
+                    "Classic CFA prepared optional display gainmap, took=${gainmapElapsed}ms",
+                )
                 result
             }
             preparedUltraHdrSource?.let {
-                PLog.d(TAG, "saveRawPhoto building detail HDR from in-memory RAW result: $photoId")
                 buildDetailHdrCache(
                     context = context,
                     photoId = photoId,
