@@ -2159,55 +2159,71 @@ fun SettingsScreen(
                             modifier = Modifier.padding(vertical = 12.dp)
                         )
 
-                        QualityLevelSetting(
-                            title = stringResource(R.string.settings_raw_output_upscale_mode),
-                            description = stringResource(
-                                R.string.settings_raw_output_upscale_mode_description
-                            ),
-                            levels = listOf(
-                                RawOutputUpscaleMode.LANCZOS3 to stringResource(
-                                    R.string.settings_raw_output_upscale_mode_lanczos
+                        if (hdrPlusMergeMode == MgcRawMaxMode.SPATIAL_BAYER) {
+                            Text(
+                                text = stringResource(
+                                    R.string.settings_raw_max_spatial_bayer_scale_fixed
                                 ),
-                                RawOutputUpscaleMode.MGC_RAISR to stringResource(
-                                    R.string.settings_raw_output_upscale_mode_raisr
+                                color = Color.White.copy(alpha = 0.72f),
+                                fontSize = 13.sp,
+                            )
+                        } else {
+                            QualityLevelSetting(
+                                title = stringResource(R.string.settings_raw_output_upscale_mode),
+                                description = stringResource(
+                                    R.string.settings_raw_output_upscale_mode_description
                                 ),
-                            ),
-                            currentLevel = rawOutputUpscaleMode,
-                            onLevelSelected = viewModel::setRawOutputUpscaleMode,
-                        )
+                                levels = listOf(
+                                    RawOutputUpscaleMode.LANCZOS3 to stringResource(
+                                        R.string.settings_raw_output_upscale_mode_lanczos
+                                    ),
+                                    RawOutputUpscaleMode.MGC_RAISR to stringResource(
+                                        R.string.settings_raw_output_upscale_mode_raisr
+                                    ),
+                                ),
+                                currentLevel = rawOutputUpscaleMode,
+                                onLevelSelected = viewModel::setRawOutputUpscaleMode,
+                            )
 
-                        HorizontalDivider(
-                            color = Color.White.copy(alpha = 0.1f),
-                            modifier = Modifier.padding(vertical = 12.dp)
-                        )
+                            HorizontalDivider(
+                                color = Color.White.copy(alpha = 0.1f),
+                                modifier = Modifier.padding(vertical = 12.dp)
+                            )
 
-                        val valueFormat = stringResource(R.string.settings_raw_max_output_scale_value)
-                        val raisrUpscaleActive = rawOutputUpscaleMode.isMgcRaisr
-                        SliderSettingItem(
-                            title = stringResource(R.string.settings_raw_max_output_scale),
-                            description = stringResource(
-                                if (raisrUpscaleActive) {
-                                    R.string.settings_raw_max_output_scale_description_raisr
-                                } else {
-                                    R.string.settings_raw_max_output_scale_description
-                                }
-                            ),
-                            value = rawMaxOutputScaleUi,
-                            valueRange = MultiFrameConfig.MIN_OUTPUT_SCALE..MultiFrameConfig.MAX_OUTPUT_SCALE,
-                            resetValue = MultiFrameConfig.DEFAULT_SUPER_RESOLUTION_SCALE,
-                            onResetValue = { scale ->
-                                rawMaxOutputScaleUi = scale
-                                viewModel.setRawMaxOutputScale(scale)
-                            },
-                            onValueChange = {
-                                rawMaxOutputScaleUi = MultiFrameConfig.normalizeOutputScale(it)
-                            },
-                            onValueChangeFinished = {
-                                viewModel.setRawMaxOutputScale(rawMaxOutputScaleUi)
-                            },
-                            valueTextFormatter = { scale -> String.format(valueFormat, scale) },
-                            enabled = !raisrUpscaleActive,
-                        )
+                            val valueFormat =
+                                stringResource(R.string.settings_raw_max_output_scale_value)
+                            val raisrUpscaleActive = rawOutputUpscaleMode.isMgcRaisr
+                            SliderSettingItem(
+                                title = stringResource(R.string.settings_raw_max_output_scale),
+                                description = stringResource(
+                                    if (raisrUpscaleActive) {
+                                        R.string.settings_raw_max_output_scale_description_raisr
+                                    } else {
+                                        R.string.settings_raw_max_output_scale_description
+                                    }
+                                ),
+                                value = rawMaxOutputScaleUi,
+                                valueRange =
+                                    MultiFrameConfig.MIN_OUTPUT_SCALE..
+                                        MultiFrameConfig.MAX_OUTPUT_SCALE,
+                                resetValue = MultiFrameConfig.DEFAULT_SUPER_RESOLUTION_SCALE,
+                                onResetValue = { scale ->
+                                    rawMaxOutputScaleUi = scale
+                                    viewModel.setRawMaxOutputScale(scale)
+                                },
+                                onValueChange = {
+                                    rawMaxOutputScaleUi =
+                                        MultiFrameConfig.normalizeOutputScale(it)
+                                },
+                                onValueChangeFinished = {
+                                    viewModel.setRawMaxOutputScale(rawMaxOutputScaleUi)
+                                },
+                                valueTextFormatter = { scale ->
+                                    String.format(valueFormat, scale)
+                                },
+                                enabled = !raisrUpscaleActive,
+                            )
+                        }
 
                         HorizontalDivider(
                             color = Color.White.copy(alpha = 0.1f),

@@ -846,32 +846,30 @@ fun GalleryDetailScreen(
         )
     }
 
-    // 导出确认对话框
+    // Render confirmation: apply the current Photon edit and create a JPEG.
     if (showExportDialog && !isCurrentPhotoProcessing) {
         AlertDialog(
             onDismissRequest = { showExportDialog = false },
-            title = { Text(stringResource(R.string.export)) },
-            text = {
-                Text(stringResource(R.string.export_confirm))
-            },
+            title = { Text(stringResource(R.string.render)) },
+            text = { Text(stringResource(R.string.render_confirm)) },
             confirmButton = {
                 TextButton(
                     onClick = {
                         showExportDialog = false
                         currentPhoto?.let {
                             isSaving = true
-                            viewModel.exportPhoto(it) { success ->
+                            viewModel.renderPhotoAsJpeg(it) { success ->
                                 isSaving = false
-                                if (success) {
-                                    Toast.makeText(context, R.string.export_success, Toast.LENGTH_SHORT).show()
-                                } else {
-                                    Toast.makeText(context, R.string.export_failed, Toast.LENGTH_SHORT).show()
-                                }
+                                Toast.makeText(
+                                    context,
+                                    if (success) R.string.render_success else R.string.render_failed,
+                                    Toast.LENGTH_SHORT
+                                ).show()
                             }
                         }
                     }
                 ) {
-                    Text(stringResource(R.string.export), color = AccentColor)
+                    Text(stringResource(R.string.render), color = AccentColor)
                 }
             },
             dismissButton = {

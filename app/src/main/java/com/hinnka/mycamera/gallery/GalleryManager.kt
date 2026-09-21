@@ -59,6 +59,7 @@ import com.hinnka.mycamera.raw.RawDngProfilePreparation
 import com.hinnka.mycamera.raw.RawDngProfilePreparationOptions
 import com.hinnka.mycamera.raw.RawDngCaptureProfilePreparer
 import com.hinnka.mycamera.raw.RawOutputScaling
+import com.hinnka.mycamera.raw.RawOutputUpscaleMode
 import com.hinnka.mycamera.raw.RawDigitalZoomResampling
 import com.hinnka.mycamera.raw.RawDemosaicProcessor
 import com.hinnka.mycamera.raw.RawMetadata
@@ -3655,13 +3656,24 @@ object GalleryManager {
                 )
                 val bayerOutputRawBlackBorderCrop =
                     metadata.rawBlackBorderCrop.scaledForOutput(1f)
+                val bayerCaptureProperties = RawOutputScaling.write(
+                    RawDigitalZoomResampling.resolveCaptureProperties(
+                        metadata.customProperties,
+                        physicalRawCrop,
+                        metadata.rawBlackBorderCrop,
+                    ),
+                    1f,
+                    RawOutputUpscaleMode.LANCZOS3,
+                )
                 var bayerUpdatedMetadata = metadata
                     .withNormalizedRawLevelCorrectionsCleared("MGC Spatial Bayer RAW stack")
                     .copy(
                         cropRegion = null,
                         rawBlackBorderCrop = bayerOutputRawBlackBorderCrop,
+                        customProperties = bayerCaptureProperties,
+                        rawOutputUpscaleMode = RawOutputUpscaleMode.LANCZOS3,
                         // Spatial Bayer intentionally does not bake the RGB FinishRaw denoise
-                        // stage into the persistent DNG. The multi-frame merge remains in CFA.
+                        // or RAISR/Lanczos super-resolution stage into the persistent DNG.
                         rawDenoiseValue = 0f,
                         rawChromaDenoiseValue = 0f,
                     )
@@ -3751,6 +3763,10 @@ object GalleryManager {
                     rawWhiteLevelMode = bayerUpdatedMetadata.rawWhiteLevelMode,
                     rawCustomWhiteLevel = bayerUpdatedMetadata.rawCustomWhiteLevel,
                     sharpeningValue = bayerRawSharpening,
+                    processLocalQualityTuningEnabled =
+                        PhotonSensorSizeTuning.enabledFromProperties(
+                            bayerUpdatedMetadata.customProperties,
+                        ),
                     processLocalQualityTuningSensorAreaMm2 =
                         PhotonSensorSizeTuning.areaFromProperties(
                             bayerUpdatedMetadata.customProperties,
@@ -3776,6 +3792,12 @@ object GalleryManager {
                     rawCfaCorrectionMode =
                         bayerUpdatedMetadata.rawCfaCorrectionMode,
                     rawBlackBorderCrop = bayerUpdatedMetadata.rawBlackBorderCrop,
+                    rawOutputScale = 1f,
+                    rawOutputUpscaleMode = RawOutputUpscaleMode.LANCZOS3,
+                    rawPhysicalOutputSize =
+                        RawDigitalZoomResampling.readPhysicalSize(
+                            bayerUpdatedMetadata.customProperties,
+                        ),
                     spectralFilmStock = bayerUpdatedMetadata.spectralFilmStock,
                     spectralFilmPrint = bayerUpdatedMetadata.spectralFilmPrint,
                     spectralFilmTuning = SpectralFilmTuning(
@@ -3814,6 +3836,12 @@ object GalleryManager {
                     throw IOException("Failed to publish Spatial Bayer preview JPEG for $photoId")
                 }
                 saveMetadata(context, photoId, bayerUpdatedMetadata)
+                markProcessingPhotoDisplayReady(
+                    photoId,
+                    photoFile,
+                    bayerUpdatedMetadata,
+                    isRawSource = true,
+                )
                 PLog.i(
                     TAG,
                     "Spatial Bayer [Advanced] published CFA DNG + internal preview " +

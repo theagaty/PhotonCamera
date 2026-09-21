@@ -18,6 +18,14 @@ class MgcMergeMethodTest {
         assertEquals(MgcMergeMethod.SABRE, MgcRawMaxMode.SABRE.mergeMethod)
         assertEquals(MgcSpatialOutputMode.RGB, MgcRawMaxMode.SPATIAL.outputMode)
         assertEquals(MgcMergeMethod.SPATIAL_RGB, MgcRawMaxMode.SPATIAL.mergeMethod)
+        assertEquals(MgcSpatialOutputMode.BAYER, MgcRawMaxMode.SPATIAL_BAYER.outputMode)
+        assertEquals(MgcMergeMethod.SPATIAL_BAYER, MgcRawMaxMode.SPATIAL_BAYER.mergeMethod)
     }
 
+    @Test
+    fun bracketExposureSupportMatchesMergeSemantics() {
+        assertEquals(false, MgcRawMaxMode.SABRE.supportsBracketExposure)
+        assertEquals(true, MgcRawMaxMode.SPATIAL.supportsBracketExposure)
+        assertEquals(true, MgcRawMaxMode.SPATIAL_BAYER.supportsBracketExposure)
+    }
 }
