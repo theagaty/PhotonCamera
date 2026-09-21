@@ -2,6 +2,9 @@ name: Photon 1.28.3 Perfect Morph
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - 'hybrid/1.28.3-perfect-morph-v1'
 
 concurrency:
   group: photon-perfect-morph-${{ github.ref }}
@@ -84,6 +87,6 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: photon-1.28.2.1-perfect-morph-debug
+          name: photon-1.28.3-perfect-morph-debug
           path: app/build/outputs/apk/default/debug/*.apk
           if-no-files-found: error
