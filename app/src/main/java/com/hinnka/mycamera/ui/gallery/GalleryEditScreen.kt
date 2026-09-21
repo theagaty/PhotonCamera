@@ -107,7 +107,6 @@ import androidx.media3.ui.AspectRatioFrameLayout
 import com.hinnka.mycamera.lut.VideoLutEffect
 import com.hinnka.mycamera.lut.LutConfig
 import com.hinnka.mycamera.video.VideoLogProfile
-import com.hinnka.mycamera.ui.camera.autoRotate
 import com.hinnka.mycamera.ui.components.RawEditPanelContentMode
 import me.saket.telephoto.zoomable.DoubleClickToZoomListener
 import com.hinnka.mycamera.ui.icons.AppIcons
@@ -230,8 +229,15 @@ fun GalleryEditScreen(
     val isPurchased by viewModel.isPurchased.collectAsState()
     val categoryOrder by viewModel.categoryOrder.collectAsState()
     val hasCopiedEditSettings by viewModel.hasCopiedEditSettings.collectAsState()
+    val canUndoEdit by viewModel.canUndoEdit.collectAsState()
+    val canRedoEdit by viewModel.canRedoEdit.collectAsState()
+    val canResetEdit by viewModel.canResetEdit.collectAsState()
+    val canRevertToOriginal by viewModel.canRevertToOriginal.collectAsState()
+    val editApplyEffectsToVideo by viewModel.editApplyEffectsToVideo.collectAsState()
 
     var isSaving by remember { mutableStateOf(false) }
+    var isRevertingToOriginal by remember { mutableStateOf(false) }
+    var showRevertToOriginalDialog by remember { mutableStateOf(false) }
     var isLoadingPreview by remember { mutableStateOf(false) }
     var showMoreMenu by remember { mutableStateOf(false) }
     var showImageHistogram by remember { mutableStateOf(false) }
@@ -289,7 +295,7 @@ fun GalleryEditScreen(
     val editRawSpectralFilmMDensityGain by viewModel.editRawSpectralFilmMDensityGain.collectAsState()
     val editRawSpectralFilmYDensityGain by viewModel.editRawSpectralFilmYDensityGain.collectAsState()
     val availableDcps = viewModel.availableDcps
-    
+
     val editComputationalAperture by viewModel.editComputationalAperture.collectAsState()
     val editBokehStyle by viewModel.editBokehStyle.collectAsState()
     val editFocusX by viewModel.editFocusPointX.collectAsState()
@@ -302,6 +308,57 @@ fun GalleryEditScreen(
     val editMirrorHorizontal by viewModel.editMirrorHorizontal.collectAsState()
 
     val editAiDenoiseStrength by viewModel.editAiDenoiseStrength.collectAsState()
+
+    val historyCropKey = editCropRect?.let {
+        listOf(it.left, it.top, it.right, it.bottom)
+    }
+    LaunchedEffect(
+        editLutId,
+        editPhotoRecipeParams,
+        syncAdjustmentsToLut,
+        editFrameId,
+        editApplyEffectsToVideo,
+        editSharpening,
+        editNoiseReduction,
+        editChromaNoiseReduction,
+        editRawExposureCompensation,
+        editRawAutoExposure,
+        editRawHighlightsAdjustment,
+        editRawShadowsAdjustment,
+        editRawBlackPointCorrection,
+        editRawWhitePointCorrection,
+        editRawLensShadingCorrectionEnabled,
+        editRawDROMode,
+        editRawBlackLevelMode,
+        editRawCustomBlackLevel,
+        editRawWhiteLevelMode,
+        editRawCustomWhiteLevel,
+        editRawCfaCorrectionMode,
+        editRawDcpId,
+        editRawEmbeddedDngProfileId,
+        editRawHncsProfileId,
+        editRawHncsRenderIntent,
+        editRawHncsFilmCurveMode,
+        editRawBaselineLutId,
+        editRawColorEngine,
+        editRawToneMappingParameters,
+        editRawSpectralFilmStock,
+        editRawSpectralFilmPrint,
+        editRawSpectralFilmCDensityGain,
+        editRawSpectralFilmMDensityGain,
+        editRawSpectralFilmYDensityGain,
+        editComputationalAperture,
+        editBokehStyle,
+        editFocusX,
+        editFocusY,
+        historyCropKey,
+        editCropAspectOption,
+        editRotationDegrees,
+        editStraightenDegrees,
+        editMirrorHorizontal,
+    ) {
+        viewModel.notifyEditStateChanged()
+    }
 
     val isRaw = editSourcePhoto?.let { viewModel.isRaw(it.id) } ?: false
     val refreshKey = editSourcePhoto?.id?.let { viewModel.photoRefreshKeys[it] } ?: 0L
@@ -713,12 +770,12 @@ fun GalleryEditScreen(
             val referencePhotoUrl = userPreferences.referencePhotoUrl
             var isMinimized by remember { mutableStateOf(false) }
             var isLarge by remember { mutableStateOf(false) }
-            
+
             referencePhotoUrl?.let { url ->
                 val density = androidx.compose.ui.platform.LocalDensity.current
                 val initialOffsetX = remember(density) { with(density) { 20.dp.toPx() } }
                 val initialOffsetY = remember(density) { with(density) { 80.dp.toPx() } }
-                
+
                 var offsetX by remember { mutableStateOf(initialOffsetX) }
                 var offsetY by remember { mutableStateOf(initialOffsetY) }
 
@@ -778,7 +835,7 @@ fun GalleryEditScreen(
                                             .fillMaxWidth(),
                                         contentScale = ContentScale.FillWidth
                                     )
-                                    
+
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
@@ -822,7 +879,7 @@ fun GalleryEditScreen(
                                         }
                                     }
                                 }
-                                
+
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -1130,6 +1187,35 @@ fun GalleryEditScreen(
                             }
                         },
                         actions = {
+                            IconButton(
+                                onClick = {
+                                    viewModel.undoEdit { success ->
+                                        if (success && isRaw) requestRawPreviewRefresh()
+                                    }
+                                },
+                                enabled = canUndoEdit && !isSaving && !isRefreshingRawPreview,
+                            ) {
+                                Icon(
+                                    imageVector = AppIcons.AutoMirroredOutlinedUndo,
+                                    contentDescription = stringResource(R.string.edit_undo),
+                                    tint = if (canUndoEdit) Color.White else Color.White.copy(alpha = 0.35f),
+                                )
+                            }
+                            IconButton(
+                                onClick = {
+                                    viewModel.redoEdit { success ->
+                                        if (success && isRaw) requestRawPreviewRefresh()
+                                    }
+                                },
+                                enabled = canRedoEdit && !isSaving && !isRefreshingRawPreview,
+                            ) {
+                                Icon(
+                                    imageVector = AppIcons.AutoMirroredOutlinedUndo,
+                                    contentDescription = stringResource(R.string.edit_redo),
+                                    tint = if (canRedoEdit) Color.White else Color.White.copy(alpha = 0.35f),
+                                    modifier = Modifier.graphicsLayer { scaleX = -1f },
+                                )
+                            }
                             if (isRaw) {
                                 val infiniteTransition = rememberInfiniteTransition(label = "refresh")
                                 val rotation by infiniteTransition.animateFloat(
@@ -1262,6 +1348,40 @@ fun GalleryEditScreen(
                                         leadingIcon = {
                                             Icon(
                                                 imageVector = AppIcons.ContentCopy,
+                                                contentDescription = null
+                                            )
+                                        }
+                                    )
+                                    HorizontalDivider()
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.edit_reset_all)) },
+                                        onClick = {
+                                            showMoreMenu = false
+                                            viewModel.resetAllEdits { success ->
+                                                if (success && isRaw) requestRawPreviewRefresh()
+                                            }
+                                        },
+                                        enabled = canResetEdit,
+                                        leadingIcon = {
+                                            Icon(
+                                                imageVector = AppIcons.RestartAlt,
+                                                contentDescription = null
+                                            )
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.edit_revert_original)) },
+                                        onClick = {
+                                            showMoreMenu = false
+                                            showRevertToOriginalDialog = true
+                                        },
+                                        enabled = canRevertToOriginal &&
+                                            !isSaving &&
+                                            !isRevertingToOriginal &&
+                                            !isRefreshingRawPreview,
+                                        leadingIcon = {
+                                            Icon(
+                                                imageVector = AppIcons.RestartAlt,
                                                 contentDescription = null
                                             )
                                         }
@@ -1974,6 +2094,55 @@ fun GalleryEditScreen(
         )
     }
 
+    if (showRevertToOriginalDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                if (!isRevertingToOriginal) showRevertToOriginalDialog = false
+            },
+            title = {
+                Text(stringResource(R.string.edit_revert_original_title))
+            },
+            text = {
+                Text(stringResource(R.string.edit_revert_original_message))
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !isRevertingToOriginal,
+                    onClick = {
+                        isRevertingToOriginal = true
+                        viewModel.revertCurrentPhotoToOriginal { success ->
+                            isRevertingToOriginal = false
+                            if (success) {
+                                showRevertToOriginalDialog = false
+                                Toast.makeText(
+                                    context,
+                                    R.string.edit_revert_original_success,
+                                    Toast.LENGTH_SHORT,
+                                ).show()
+                            } else {
+                                Toast.makeText(
+                                    context,
+                                    R.string.edit_revert_original_failed,
+                                    Toast.LENGTH_SHORT,
+                                ).show()
+                            }
+                        }
+                    }
+                ) {
+                    Text(stringResource(R.string.edit_revert_original_confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    enabled = !isRevertingToOriginal,
+                    onClick = { showRevertToOriginalDialog = false }
+                ) {
+                    Text(stringResource(android.R.string.cancel))
+                }
+            }
+        )
+    }
+
     if (showPaymentDialog) {
         val activity = context.findActivity()
         PaymentDialog(
@@ -2419,7 +2588,7 @@ private fun VideoEditPlayer(
     val mediaUri = remember(photo.id, photo.uri, photo.sourceUri) {
         photo.sourceUri ?: photo.uri
     }
-    
+
     PLog.d("VideoEditPlayer", "VideoEditPlayer composable recomposing/initializing. photoId: ${photo.id}, mediaUri: $mediaUri")
 
     var isPlayerActive by remember { mutableStateOf(false) }
@@ -2432,7 +2601,7 @@ private fun VideoEditPlayer(
         PLog.d("VideoEditPlayer", "Instantiating new VideoLutEffect.")
         VideoLutEffect(lutConfig, recipeParams, sourceLogProfile)
     }
-    
+
     val exoPlayer = remember(photo.id, mediaUri, isPlayerActive, videoLutEffect) {
         if (!isPlayerActive) return@remember null
         PLog.d("VideoEditPlayer", "Re-creating loopable ExoPlayer instance for video preview.")
@@ -2442,7 +2611,7 @@ private fun VideoEditPlayer(
             setVideoEffects(listOf(videoLutEffect))
             prepare()
             playWhenReady = true
-            
+
             addListener(object : Player.Listener {
                 override fun onPlaybackStateChanged(state: Int) {
                     PLog.d("VideoEditPlayer", "ExoPlayer state changed: $state")
@@ -2489,7 +2658,7 @@ private fun VideoEditPlayer(
                 it.player = exoPlayer
                 it.visibility = android.view.View.VISIBLE
             },
-            modifier = modifier.autoRotate(matchParentSize = true)
+            modifier = modifier
         )
     } else {
         Spacer(modifier = modifier.fillMaxSize())

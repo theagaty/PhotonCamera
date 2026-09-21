@@ -81,7 +81,6 @@ import com.hinnka.mycamera.lut.VideoExportOption
 import com.hinnka.mycamera.lut.VideoExportResolution
 import com.hinnka.mycamera.lut.VideoExportSupport
 import com.hinnka.mycamera.lut.VideoLutEffect
-import com.hinnka.mycamera.ui.camera.autoRotate
 import com.hinnka.mycamera.ui.components.CustomSlider
 import com.hinnka.mycamera.ui.components.PaymentDialog
 import com.hinnka.mycamera.ui.components.PhysicalButton
@@ -182,7 +181,6 @@ fun GalleryDetailScreen(
     var isZoomed by remember { mutableStateOf(false) }
     var showExportDialog by remember { mutableStateOf(false) }
     var isSaving by remember { mutableStateOf(false) }
-    var isExportingDng by remember { mutableStateOf(false) }
     var isCopyingSettings by remember { mutableStateOf(false) }
     var isPastingSettings by remember { mutableStateOf(false) }
     val isVideoExporting = viewModel.isVideoExporting
@@ -363,9 +361,6 @@ fun GalleryDetailScreen(
     LaunchedEffect(currentPhoto?.id) {
         showHdrStrengthPanel = false
     }
-    val isCurrentRawPhoto = !isCurrentPhotoProcessing && currentPhoto?.let {
-        it.isImage && (viewModel.selectedTab == GalleryTab.PHOTON || it.relatedPhoto != null) && viewModel.isRaw(it.id)
-    } == true
     var displayPhotoSize by remember(currentPhoto?.id) { mutableLongStateOf(currentPhoto?.size ?: 0L) }
 
     LaunchedEffect(currentPhoto?.id, currentPhoto?.size, currentPhoto?.uri, currentPhoto?.sourceUri, isCurrentPhotoProcessing) {
@@ -434,7 +429,7 @@ fun GalleryDetailScreen(
                 },
                 navigationIcon = {
                     if (!isExpanded) {
-                        IconButton(onClick = onBack, modifier = Modifier.autoRotate()) {
+                        IconButton(onClick = onBack, modifier = Modifier) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                                 contentDescription = stringResource(R.string.back),
@@ -483,7 +478,7 @@ fun GalleryDetailScreen(
                                 }
                             },
                             enabled = !isRefreshing,
-                            modifier = Modifier.autoRotate()
+                            modifier = Modifier
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Refresh,
@@ -498,7 +493,7 @@ fun GalleryDetailScreen(
                         }
                     }
                     if (!isCurrentPhotoProcessing && currentPhoto != null && currentPhoto.isImage && currentPhoto.isBurstPhoto) {
-                        IconButton(onClick = { onViewBurst?.invoke(currentPhoto.id) }, modifier = Modifier.autoRotate()) {
+                        IconButton(onClick = { onViewBurst?.invoke(currentPhoto.id) }, modifier = Modifier) {
                             Icon(
                                 imageVector = AppIcons.BurstMode,
                                 contentDescription = "查看连拍照片", // 连拍照片
@@ -527,7 +522,7 @@ fun GalleryDetailScreen(
                             )
                         }
                     }
-                    IconButton(onClick = { showInfoDialog = true }, enabled = !isCurrentPhotoProcessing, modifier = Modifier.autoRotate()) {
+                    IconButton(onClick = { showInfoDialog = true }, enabled = !isCurrentPhotoProcessing, modifier = Modifier) {
                         Icon(
                             imageVector = Icons.Default.Info,
                             contentDescription = stringResource(if (currentPhoto?.isVideo == true) R.string.video_info else R.string.photo_info),
@@ -1095,8 +1090,29 @@ fun GalleryDetailScreen(
                         icon = AppIcons.Output,
                         text = context.getString(R.string.export),
                         isLoading = isSaving,
-                        enabled = !isCopyingSettings && !isPastingSettings,
+                        enabled = !isSaving && !isCopyingSettings && !isPastingSettings,
                         onClick = {
+                            showMoreSheet = false
+                            isSaving = true
+                            viewModel.exportPhotoPreservingFormat(currentPhoto) { success ->
+                                isSaving = false
+                                Toast.makeText(
+                                    context,
+                                    if (success) R.string.export_success else R.string.export_failed,
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        }
+                    )
+                )
+                add(
+                    GalleryMoreAction(
+                        icon = AppIcons.AutoAwesome,
+                        text = context.getString(R.string.render),
+                        isLoading = isSaving,
+                        enabled = !isSaving && !isCopyingSettings && !isPastingSettings,
+                        onClick = {
+                            showMoreSheet = false
                             showExportDialog = true
                         }
                     )
@@ -1191,31 +1207,7 @@ fun GalleryDetailScreen(
                 )
             )
 
-            if (isCurrentRawPhoto) {
-                add(
-                    GalleryMoreAction(
-                        iconText = context.getString(R.string.dng_format),
-                        text = context.getString(R.string.dng_format),
-                        isLoading = isExportingDng,
-                        enabled = !isSaving &&
-                            !isExportingDng &&
-                            !isCopyingSettings &&
-                            !isPastingSettings,
-                        onClick = {
-                            showMoreSheet = false
-                            isExportingDng = true
-                            viewModel.exportDng(currentPhoto) { success ->
-                                isExportingDng = false
-                                Toast.makeText(
-                                    context,
-                                    if (success) R.string.export_dng_success else R.string.export_dng_failed,
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                            }
-                        }
-                    )
-                )
-            }
+
         }
 
         @OptIn(ExperimentalMaterial3Api::class)
@@ -1946,7 +1938,7 @@ private fun GalleryCircleActionButton(
                 tint = GalleryToolbarContent,
                 modifier = Modifier
                     .size(18.dp)
-                    .autoRotate()
+
             )
         }
     }
@@ -1978,7 +1970,7 @@ private fun GalleryGroupedActionButton(
                 tint = GalleryToolbarContent.copy(alpha = if (enabled) 1f else 0.38f),
                 modifier = Modifier
                     .size(18.dp)
-                    .autoRotate()
+
             )
         }
     }
@@ -2286,12 +2278,12 @@ private fun VideoDetailPlayer(
                 it.setShowBuffering(PlayerView.SHOW_BUFFERING_NEVER)
                 it.isVisible = true
             },
-            modifier = modifier.autoRotate(matchParentSize = true)
+            modifier = modifier
         )
     } else {
         // Show video thumbnail with a play icon when player is not active
         Box(
-            modifier = modifier.autoRotate(matchParentSize = true),
+            modifier = modifier,
             contentAlignment = Alignment.Center
         ) {
             val transformation = remember(photo) {
@@ -2423,7 +2415,7 @@ private fun ZoomableImage(
                 contentScale = ContentScale.Fit,
                 state = zoomableState,
                 onDoubleClick = DoubleClickToZoomListener.cycle(maxZoomFactor = 3f),
-                modifier = Modifier.fillMaxSize().autoRotate(matchParentSize = true)
+                modifier = Modifier.fillMaxSize()
             )
         }
 
@@ -2440,7 +2432,7 @@ private fun ZoomableImage(
                 contentDescription = displayPhoto.displayName,
                 contentScale = ContentScale.Fit,
                 state = zoomableState,
-                modifier = Modifier.fillMaxSize().alpha(hdrAlpha).autoRotate(matchParentSize = true)
+                modifier = Modifier.fillMaxSize().alpha(hdrAlpha)
             )
         }
 
@@ -2610,6 +2602,6 @@ fun MotionPhotoPlayer(
             it.isVisible = true
             it.alpha = if (isPlaying && isReadyToShow) 1f else 0f
         },
-        modifier = modifier.autoRotate(matchParentSize = true)
+        modifier = modifier
     )
 }

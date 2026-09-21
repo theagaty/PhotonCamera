@@ -79,7 +79,13 @@ enum class GalleryTab {
 
 enum class GalleryBatchOperation {
     PASTE_SETTINGS,
-    EXPORT
+    EXPORT,
+    RENDER
+}
+
+private enum class BatchImageOutputMode {
+    PRESERVE_FORMAT,
+    RENDER_JPEG
 }
 
 data class GalleryBatchOperationProgress(
@@ -93,6 +99,68 @@ private data class CopiedEditSettings(
     val normalizedCropRect: RectF?
 )
 
+private data class EditCropSnapshot(
+    val left: Float,
+    val top: Float,
+    val right: Float,
+    val bottom: Float,
+) {
+    fun toRectF(): RectF = RectF(left, top, right, bottom)
+
+    companion object {
+        fun from(rect: RectF?): EditCropSnapshot? = rect?.let {
+            EditCropSnapshot(it.left, it.top, it.right, it.bottom)
+        }
+    }
+}
+
+private data class EditSnapshot(
+    val lutId: String?,
+    val photoRecipeParams: ColorRecipeParams?,
+    val independentPhotoRecipeParams: ColorRecipeParams,
+    val syncAdjustmentsToLut: Boolean,
+    val frameId: String?,
+    val applyEffectsToVideo: Boolean,
+    val sharpening: Float,
+    val noiseReduction: Float,
+    val chromaNoiseReduction: Float,
+    val rawExposureCompensation: Float,
+    val rawAutoExposure: Boolean,
+    val rawHighlightsAdjustment: Float,
+    val rawShadowsAdjustment: Float,
+    val rawBlackPointCorrection: Float,
+    val rawWhitePointCorrection: Float,
+    val rawLensShadingCorrectionEnabled: Boolean,
+    val rawDROMode: String,
+    val rawBlackLevelMode: String,
+    val rawCustomBlackLevel: Float,
+    val rawWhiteLevelMode: String,
+    val rawCustomWhiteLevel: Float,
+    val rawCfaCorrectionMode: String,
+    val rawDcpId: String?,
+    val rawEmbeddedDngProfileId: String?,
+    val rawHncsProfileId: String?,
+    val rawHncsRenderIntent: HncsRenderIntent,
+    val rawHncsFilmCurveMode: HncsFilmCurveMode,
+    val rawBaselineLutId: String?,
+    val rawRenderingEngine: RawRenderingEngine,
+    val rawToneMappingParameters: RawToneMappingParameters,
+    val rawSpectralFilmStock: String?,
+    val rawSpectralFilmPrint: String?,
+    val rawSpectralFilmCDensityGain: Float,
+    val rawSpectralFilmMDensityGain: Float,
+    val rawSpectralFilmYDensityGain: Float,
+    val computationalAperture: Float?,
+    val bokehStyle: BokehStyle,
+    val focusPointX: Float?,
+    val focusPointY: Float?,
+    val crop: EditCropSnapshot?,
+    val cropAspectOption: CropAspectOption,
+    val rotationDegrees: Int,
+    val straightenDegrees: Float,
+    val mirrorHorizontal: Boolean,
+)
+
 /**
  * 相册 ViewModel
  * 管理照片列表、选择状态和各种操作
@@ -103,6 +171,8 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
         private const val TAG = "GalleryViewModel"
         private const val FULL_QUALITY_PREVIEW_MAX_EDGE = 4096
         private const val HDR_DETAIL_MAX_BITMAP_BYTES = 80L * 1024L * 1024L
+        private const val MAX_EDIT_HISTORY_STATES = 100
+        private const val EDIT_HISTORY_SETTLE_MS = 500L
     }
 
 
@@ -260,6 +330,23 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
         private set
     var preparingEditPhotoId by mutableStateOf<String?>(null)
         private set
+
+    private val editUndoStack = java.util.ArrayDeque<EditSnapshot>()
+    private val editRedoStack = java.util.ArrayDeque<EditSnapshot>()
+    private var editHistoryBaseline: EditSnapshot? = null
+    private var editHistoryCurrent: EditSnapshot? = null
+    private var editHistoryCommitJob: Job? = null
+    private var restoringEditHistory = false
+
+    private val _canUndoEdit = MutableStateFlow(false)
+    val canUndoEdit = _canUndoEdit.asStateFlow()
+    private val _canRedoEdit = MutableStateFlow(false)
+    val canRedoEdit = _canRedoEdit.asStateFlow()
+    private val _canResetEdit = MutableStateFlow(false)
+    val canResetEdit = _canResetEdit.asStateFlow()
+
+    private val _canRevertToOriginal = MutableStateFlow(false)
+    val canRevertToOriginal = _canRevertToOriginal.asStateFlow()
 
     // LUT 编辑状态
     var editLutId = MutableStateFlow<String?>(null)
@@ -1457,6 +1544,8 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
         val photo = getCurrentPhoto()
         currentPhotoMetadataId = photo?.id
         currentMediaMetadata = metadata
+        _canRevertToOriginal.value =
+            photo?.isVideo != true && GalleryManager.hasRevertBaseline(metadata)
         metadata?.let { m ->
             editLutId.value = m.lutId
             editFrameId.value = m.frameId
@@ -2106,6 +2195,23 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
             applyMetadataToEditState(metadata)
         }
 
+        if (!targetPhoto.isVideo) {
+            val baselineTargetPhoto = targetPhoto.relatedPhoto ?: targetPhoto
+            val baselineMetadata = runBlocking {
+                withContext(Dispatchers.IO) {
+                    GalleryManager.ensureRevertBaseline(
+                        getApplication(),
+                        baselineTargetPhoto.id,
+                    )
+                }
+            }
+            if (baselineMetadata != null) {
+                baselineTargetPhoto.metadata = baselineMetadata
+                currentMediaMetadata = baselineMetadata
+                _canRevertToOriginal.value = true
+            }
+        }
+
         isEditing = true
         editSyncAdjustmentsToLut = false
         independentEditPhotoRecipeParams = ColorRecipeParams.DEFAULT
@@ -2215,6 +2321,8 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
             }
         }
 
+        initializeEditHistory()
+
         // Resolve the source from the file before exposing the video effect to the player.
         val manualProfile = VideoColorMetadata.manualProfile(currentMediaMetadata?.customProperties)
         viewModelScope.launch {
@@ -2235,6 +2343,284 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
                 }
             }
         }
+    }
+
+
+    private fun captureEditSnapshot(): EditSnapshot {
+        return EditSnapshot(
+            lutId = editLutId.value,
+            photoRecipeParams = editPhotoRecipeParams.value,
+            independentPhotoRecipeParams = independentEditPhotoRecipeParams,
+            syncAdjustmentsToLut = editSyncAdjustmentsToLut,
+            frameId = editFrameId.value,
+            applyEffectsToVideo = editApplyEffectsToVideo.value,
+            sharpening = editSharpening.value,
+            noiseReduction = editNoiseReduction.value,
+            chromaNoiseReduction = editChromaNoiseReduction.value,
+            rawExposureCompensation = editRawExposureCompensation.value,
+            rawAutoExposure = editRawAutoExposure.value,
+            rawHighlightsAdjustment = editRawHighlightsAdjustment.value,
+            rawShadowsAdjustment = editRawShadowsAdjustment.value,
+            rawBlackPointCorrection = editRawBlackPointCorrection.value,
+            rawWhitePointCorrection = editRawWhitePointCorrection.value,
+            rawLensShadingCorrectionEnabled = editRawLensShadingCorrectionEnabled.value,
+            rawDROMode = editRawDROMode.value,
+            rawBlackLevelMode = editRawBlackLevelMode.value,
+            rawCustomBlackLevel = editRawCustomBlackLevel.value,
+            rawWhiteLevelMode = editRawWhiteLevelMode.value,
+            rawCustomWhiteLevel = editRawCustomWhiteLevel.value,
+            rawCfaCorrectionMode = editRawCfaCorrectionMode.value,
+            rawDcpId = editRawDcpId.value,
+            rawEmbeddedDngProfileId = editRawEmbeddedDngProfileId.value,
+            rawHncsProfileId = editRawHncsProfileId.value,
+            rawHncsRenderIntent = editRawHncsRenderIntent.value,
+            rawHncsFilmCurveMode = editRawHncsFilmCurveMode.value,
+            rawBaselineLutId = editRawBaselineLutId.value,
+            rawRenderingEngine = editRawRenderingEngine.value,
+            rawToneMappingParameters = editRawToneMappingParameters.value,
+            rawSpectralFilmStock = editRawSpectralFilmStock.value,
+            rawSpectralFilmPrint = editRawSpectralFilmPrint.value,
+            rawSpectralFilmCDensityGain = editRawSpectralFilmCDensityGain.value,
+            rawSpectralFilmMDensityGain = editRawSpectralFilmMDensityGain.value,
+            rawSpectralFilmYDensityGain = editRawSpectralFilmYDensityGain.value,
+            computationalAperture = editComputationalAperture.value,
+            bokehStyle = editBokehStyle.value,
+            focusPointX = editFocusPointX.value,
+            focusPointY = editFocusPointY.value,
+            crop = EditCropSnapshot.from(editCropRect.value),
+            cropAspectOption = editCropAspectOption.value,
+            rotationDegrees = editRotationDegrees.value,
+            straightenDegrees = editStraightenDegrees.value,
+            mirrorHorizontal = editMirrorHorizontal.value,
+        )
+    }
+
+    private fun pushEditUndo(snapshot: EditSnapshot) {
+        while (editUndoStack.size >= MAX_EDIT_HISTORY_STATES) {
+            editUndoStack.removeFirst()
+        }
+        editUndoStack.addLast(snapshot)
+    }
+
+    private fun updateEditHistoryAvailability() {
+        val current = editHistoryCurrent
+        val live = if (isEditing && !restoringEditHistory) captureEditSnapshot() else current
+        val hasPendingChange = current != null && live != null && live != current
+        _canUndoEdit.value = editUndoStack.isNotEmpty() || hasPendingChange
+        _canRedoEdit.value = editRedoStack.isNotEmpty() && !hasPendingChange
+        _canResetEdit.value = editHistoryBaseline?.let { baseline ->
+            live != null && live != baseline
+        } ?: false
+    }
+
+    private fun initializeEditHistory() {
+        editHistoryCommitJob?.cancel()
+        editUndoStack.clear()
+        editRedoStack.clear()
+        val snapshot = captureEditSnapshot()
+        editHistoryBaseline = snapshot
+        editHistoryCurrent = snapshot
+        updateEditHistoryAvailability()
+    }
+
+    private fun clearEditHistory() {
+        editHistoryCommitJob?.cancel()
+        editHistoryCommitJob = null
+        editUndoStack.clear()
+        editRedoStack.clear()
+        editHistoryBaseline = null
+        editHistoryCurrent = null
+        _canUndoEdit.value = false
+        _canRedoEdit.value = false
+        _canResetEdit.value = false
+    }
+
+    /**
+     * Called by the editor when any user-visible edit state changes.
+     *
+     * The settle window groups continuous slider movement into one history state. Undo commits a
+     * still-pending state synchronously first, so a fast Undo immediately after a drag is safe.
+     */
+    fun notifyEditStateChanged() {
+        if (!isEditing || restoringEditHistory || editHistoryCurrent == null) return
+        updateEditHistoryAvailability()
+        editHistoryCommitJob?.cancel()
+        editHistoryCommitJob = viewModelScope.launch {
+            delay(EDIT_HISTORY_SETTLE_MS)
+            commitPendingEditHistory()
+        }
+    }
+
+    private fun commitPendingEditHistory() {
+        editHistoryCommitJob?.cancel()
+        editHistoryCommitJob = null
+        if (!isEditing || restoringEditHistory) return
+        val previous = editHistoryCurrent ?: return
+        val next = captureEditSnapshot()
+        if (next == previous) {
+            updateEditHistoryAvailability()
+            return
+        }
+        pushEditUndo(previous)
+        editHistoryCurrent = next
+        editRedoStack.clear()
+        updateEditHistoryAvailability()
+    }
+
+    private fun restoreEditSnapshot(
+        snapshot: EditSnapshot,
+        onComplete: (Boolean) -> Unit,
+    ) {
+        val previousAperture = editComputationalAperture.value
+        val previousBokehStyle = editBokehStyle.value
+        val previousFocusX = editFocusPointX.value
+        val previousFocusY = editFocusPointY.value
+
+        restoringEditHistory = true
+        editLutId.value = snapshot.lutId
+        editPhotoRecipeParams.value = snapshot.photoRecipeParams
+        independentEditPhotoRecipeParams = snapshot.independentPhotoRecipeParams
+        editSyncAdjustmentsToLut = snapshot.syncAdjustmentsToLut
+        editFrameId.value = snapshot.frameId
+        editApplyEffectsToVideo.value = snapshot.applyEffectsToVideo
+        editSharpening.value = snapshot.sharpening
+        editNoiseReduction.value = snapshot.noiseReduction
+        editChromaNoiseReduction.value = snapshot.chromaNoiseReduction
+        editRawExposureCompensation.value = snapshot.rawExposureCompensation
+        editRawAutoExposure.value = snapshot.rawAutoExposure
+        editRawHighlightsAdjustment.value = snapshot.rawHighlightsAdjustment
+        editRawShadowsAdjustment.value = snapshot.rawShadowsAdjustment
+        editRawBlackPointCorrection.value = snapshot.rawBlackPointCorrection
+        editRawWhitePointCorrection.value = snapshot.rawWhitePointCorrection
+        editRawLensShadingCorrectionEnabled.value = snapshot.rawLensShadingCorrectionEnabled
+        editRawDROMode.value = snapshot.rawDROMode
+        editRawBlackLevelMode.value = snapshot.rawBlackLevelMode
+        editRawCustomBlackLevel.value = snapshot.rawCustomBlackLevel
+        editRawWhiteLevelMode.value = snapshot.rawWhiteLevelMode
+        editRawCustomWhiteLevel.value = snapshot.rawCustomWhiteLevel
+        editRawCfaCorrectionMode.value = snapshot.rawCfaCorrectionMode
+        editRawDcpId.value = snapshot.rawDcpId
+        editRawEmbeddedDngProfileId.value = snapshot.rawEmbeddedDngProfileId
+        editRawHncsProfileId.value = snapshot.rawHncsProfileId
+        editRawHncsRenderIntent.value = snapshot.rawHncsRenderIntent
+        editRawHncsFilmCurveMode.value = snapshot.rawHncsFilmCurveMode
+        editRawBaselineLutId.value = snapshot.rawBaselineLutId
+        editRawRenderingEngine.value = snapshot.rawRenderingEngine
+        editRawToneMappingParameters.value = snapshot.rawToneMappingParameters
+        editRawSpectralFilmStock.value = snapshot.rawSpectralFilmStock
+        editRawSpectralFilmPrint.value = snapshot.rawSpectralFilmPrint
+        editRawSpectralFilmCDensityGain.value = snapshot.rawSpectralFilmCDensityGain
+        editRawSpectralFilmMDensityGain.value = snapshot.rawSpectralFilmMDensityGain
+        editRawSpectralFilmYDensityGain.value = snapshot.rawSpectralFilmYDensityGain
+        editComputationalAperture.value = snapshot.computationalAperture
+        editBokehStyle.value = snapshot.bokehStyle
+        editFocusPointX.value = snapshot.focusPointX
+        editFocusPointY.value = snapshot.focusPointY
+        editCropRect.value = snapshot.crop?.toRectF()
+        editCropAspectOption.value = snapshot.cropAspectOption
+        editRotationDegrees.value = snapshot.rotationDegrees
+        editStraightenDegrees.value = snapshot.straightenDegrees
+        editMirrorHorizontal.value = snapshot.mirrorHorizontal
+        restoringEditHistory = false
+
+        editLutConfig = null
+        snapshot.lutId?.let { lutId ->
+            viewModelScope.launch {
+                val config = withContext(Dispatchers.IO) {
+                    contentRepository.lutManager.loadLut(lutId)
+                }
+                if (isEditing && editLutId.value == lutId) {
+                    editLutConfig = config
+                }
+            }
+        }
+
+        if (snapshot.syncAdjustmentsToLut && snapshot.lutId != null &&
+            snapshot.photoRecipeParams != null
+        ) {
+            pendingEditLutRecipeSync[snapshot.lutId] = snapshot.photoRecipeParams.deepCopy()
+            viewModelScope.launch { flushPendingEditLutRecipeSync() }
+        }
+
+        if (previousAperture != snapshot.computationalAperture ||
+            previousBokehStyle != snapshot.bokehStyle ||
+            previousFocusX != snapshot.focusPointX ||
+            previousFocusY != snapshot.focusPointY
+        ) {
+            updateBokehPhoto()
+        }
+
+        updateEditHistoryAvailability()
+
+        val targetPhoto = getCurrentPhoto()?.let { it.relatedPhoto ?: it }
+        if (targetPhoto != null && isRawMedia(targetPhoto)) {
+            persistRawEditMetadata(targetPhoto, onComplete)
+        } else {
+            onComplete(true)
+        }
+    }
+
+    fun undoEdit(onComplete: (Boolean) -> Unit = {}) {
+        commitPendingEditHistory()
+        val current = editHistoryCurrent ?: run {
+            onComplete(false)
+            return
+        }
+        if (editUndoStack.isEmpty()) {
+            updateEditHistoryAvailability()
+            onComplete(false)
+            return
+        }
+        editRedoStack.addLast(current)
+        val target = editUndoStack.removeLast()
+        editHistoryCurrent = target
+        restoreEditSnapshot(target, onComplete)
+    }
+
+    fun redoEdit(onComplete: (Boolean) -> Unit = {}) {
+        editHistoryCommitJob?.cancel()
+        editHistoryCommitJob = null
+        val current = editHistoryCurrent ?: run {
+            onComplete(false)
+            return
+        }
+        val live = captureEditSnapshot()
+        if (live != current) {
+            // A new edit after Undo creates a new branch; commit it and intentionally discard Redo.
+            commitPendingEditHistory()
+            onComplete(false)
+            return
+        }
+        if (editRedoStack.isEmpty()) {
+            updateEditHistoryAvailability()
+            onComplete(false)
+            return
+        }
+        pushEditUndo(current)
+        val target = editRedoStack.removeLast()
+        editHistoryCurrent = target
+        restoreEditSnapshot(target, onComplete)
+    }
+
+    fun resetAllEdits(onComplete: (Boolean) -> Unit = {}) {
+        commitPendingEditHistory()
+        val baseline = editHistoryBaseline ?: run {
+            onComplete(false)
+            return
+        }
+        val current = editHistoryCurrent ?: run {
+            onComplete(false)
+            return
+        }
+        if (current == baseline) {
+            updateEditHistoryAvailability()
+            onComplete(false)
+            return
+        }
+        pushEditUndo(current)
+        editRedoStack.clear()
+        editHistoryCurrent = baseline
+        restoreEditSnapshot(baseline, onComplete)
     }
 
     fun prepareCurrentPhotoForEdit(
@@ -2302,6 +2688,8 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
             flushPendingEditLutRecipeSync()
         }
         isEditing = false
+        clearEditHistory()
+        _canRevertToOriginal.value = false
         editVideoSourceProfile = null
         editVideoProfileDetected = false
         editVideoProfileOverride = null
@@ -3857,6 +4245,59 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
     }
 
     /**
+     * Permanently discards this Photon photo's saved edit/development state and restores the
+     * capture-time baseline. Exported phone-gallery copies are never touched.
+     */
+    fun revertCurrentPhotoToOriginal(onComplete: (Boolean) -> Unit = {}) {
+        val visiblePhoto = getCurrentPhoto()
+        if (visiblePhoto == null || visiblePhoto.isVideo) {
+            onComplete(false)
+            return
+        }
+        val targetPhoto = visiblePhoto.relatedPhoto ?: visiblePhoto
+
+        viewModelScope.launch {
+            val context = getApplication<Application>()
+            val restored = GalleryManager.revertPhotoToOriginal(
+                context = context,
+                photoId = targetPhoto.id,
+                photoProcessor = contentRepository.photoProcessor,
+            )
+            if (restored == null) {
+                onComplete(false)
+                return@launch
+            }
+
+            targetPhoto.metadata = restored
+            visiblePhoto.relatedPhoto?.metadata = restored
+            if (visiblePhoto.id == targetPhoto.id) {
+                visiblePhoto.metadata = restored
+            }
+            _photos.update { current ->
+                current.map { photo ->
+                    if (photo.id == targetPhoto.id) photo.withMetadataSnapshot(restored) else photo
+                }
+            }
+            _latestPhoto.update { latest ->
+                if (latest?.id == targetPhoto.id) latest.withMetadataSnapshot(restored) else latest
+            }
+
+            currentMediaMetadata = restored
+            currentPhotoMetadataId = visiblePhoto.id
+            photoRefreshKeys[targetPhoto.id] = System.currentTimeMillis()
+            invalidatePreviewCache(targetPhoto.id)
+
+            // Re-enter the same editor screen so all controls and the session baseline are rebuilt
+            // from the restored capture state. This also makes Reset All grey again immediately.
+            exitEditMode()
+            currentMediaMetadata = restored
+            currentPhotoMetadataId = visiblePhoto.id
+            enterEditMode()
+            onComplete(true)
+        }
+    }
+
+    /**
      * 刷新 RAW 照片的预览图
      */
     fun refreshRawPreview(
@@ -4360,34 +4801,51 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
     }
 
     /**
-     * 批量导出选中的照片
+     * Batch export while preserving each selected photo's stored source format.
      */
     fun exportSelectedPhotos(onComplete: (Int) -> Unit = {}) {
+        batchExportSelectedPhotos(BatchImageOutputMode.PRESERVE_FORMAT, onComplete)
+    }
+
+    /**
+     * Batch render every selected photo through Photon and force JPEG output.
+     */
+    fun renderSelectedPhotos(onComplete: (Int) -> Unit = {}) {
+        batchExportSelectedPhotos(BatchImageOutputMode.RENDER_JPEG, onComplete)
+    }
+
+    private fun batchExportSelectedPhotos(
+        outputMode: BatchImageOutputMode,
+        onComplete: (Int) -> Unit = {},
+    ) {
         if (_isExporting.value || _isPastingSettings.value) return
-        val selectedSnapshot = selectedPhotos.toList()
-        if (selectedSnapshot.isEmpty()) return
-        val toExport = selectedSnapshot.filter { it.isImage }
+        val toExport = selectedPhotos.toList().filter { it.isImage }
         if (toExport.isEmpty()) {
             onComplete(0)
             return
         }
         val selectedTabSnapshot = selectedTab
+        val operation = if (outputMode == BatchImageOutputMode.PRESERVE_FORMAT) {
+            GalleryBatchOperation.EXPORT
+        } else {
+            GalleryBatchOperation.RENDER
+        }
 
         viewModelScope.launch {
             _isExporting.value = true
             val total = toExport.size
             exportProgress = 0 to total
             _batchOperationProgress.value = GalleryBatchOperationProgress(
-                operation = GalleryBatchOperation.EXPORT,
+                operation = operation,
                 completed = 0,
-                total = total
+                total = total,
             )
             var successCount = 0
-            
+
             try {
                 val context = getApplication<Application>()
                 val quality = photoQuality.firstOrNull() ?: 95
-                
+
                 withContext(Dispatchers.IO) {
                     toExport.forEachIndexed { index, photo ->
                         try {
@@ -4401,56 +4859,146 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
                                     ?: photo.relatedPhoto?.metadata
                                     ?: photo.metadata
                                     ?: MediaMetadata()
-                                val exported = GalleryManager.exportPhoto(
-                                    context,
-                                    photoId,
-                                    null,
-                                    contentRepository.photoProcessor,
-                                    metadata,
-                                    0f,
-                                    0f,
-                                    0f,
-                                    quality
-                                )
-                                if (exported) {
-                                    successCount += 1
+                                val exported = if (
+                                    outputMode == BatchImageOutputMode.PRESERVE_FORMAT
+                                ) {
+                                    GalleryManager.exportOriginalImage(
+                                        context = context,
+                                        photoId = photoId,
+                                        metadata = metadata,
+                                    )
+                                } else {
+                                    GalleryManager.exportPhoto(
+                                        context = context,
+                                        id = photoId,
+                                        bitmap = null,
+                                        photoProcessor = contentRepository.photoProcessor,
+                                        metadata = metadata,
+                                        sharpeningValue = 0f,
+                                        noiseReductionValue = 0f,
+                                        chromaNoiseReductionValue = 0f,
+                                        photoQuality = quality,
+                                        preferHeicExport = false,
+                                        preferJpeg444Export = false,
+                                    )
                                 }
+                                if (exported) successCount += 1
                             }
                         } catch (e: CancellationException) {
                             throw e
                         } catch (e: Exception) {
-                            PLog.e(
-                                TAG,
-                                "Failed to export selected photo ${photo.id}",
-                                e
-                            )
+                            PLog.e(TAG, "Failed selected-photo output operation", e)
                         } finally {
                             withContext(Dispatchers.Main) {
                                 val completed = index + 1
                                 exportProgress = completed to total
-                                _batchOperationProgress.value =
-                                    GalleryBatchOperationProgress(
-                                        operation = GalleryBatchOperation.EXPORT,
-                                        completed = completed,
-                                        total = total
-                                    )
+                                _batchOperationProgress.value = GalleryBatchOperationProgress(
+                                    operation = operation,
+                                    completed = completed,
+                                    total = total,
+                                )
                             }
                         }
                     }
                 }
-                
+
                 exitSelectionMode()
                 loadPhotos()
                 onComplete(successCount)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                PLog.e(TAG, "Failed to batch export photos", e)
+                PLog.e(TAG, "Failed batch output operation", e)
                 onComplete(0)
             } finally {
                 _isExporting.value = false
                 exportProgress = 0 to 0
                 _batchOperationProgress.value = null
+            }
+        }
+    }
+
+    private suspend fun resolvePhotonPhotoForOutput(
+        photo: MediaData,
+    ): Pair<String, MediaMetadata>? {
+        val context = getApplication<Application>()
+        val photoId = if (selectedTab == GalleryTab.SYSTEM) {
+            photo.relatedPhoto?.id
+        } else {
+            photo.id
+        } ?: return null
+        val metadata = GalleryManager.loadMetadata(context, photoId)
+            ?: photo.relatedPhoto?.metadata
+            ?: photo.metadata
+            ?: MediaMetadata()
+        return photoId to metadata
+    }
+
+    fun exportPhotoPreservingFormat(
+        photo: MediaData,
+        onComplete: (Boolean) -> Unit = {},
+    ) {
+        if (photo.isVideo) {
+            onComplete(false)
+            return
+        }
+        viewModelScope.launch {
+            try {
+                val resolved = resolvePhotonPhotoForOutput(photo)
+                val success = resolved?.let { (photoId, metadata) ->
+                    GalleryManager.exportOriginalImage(
+                        context = getApplication<Application>(),
+                        photoId = photoId,
+                        metadata = metadata,
+                    )
+                } ?: false
+                if (success) loadPhotos()
+                onComplete(success)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                PLog.e(TAG, "Failed original-format photo export", e)
+                onComplete(false)
+            }
+        }
+    }
+
+    fun renderPhotoAsJpeg(
+        photo: MediaData,
+        onComplete: (Boolean) -> Unit = {},
+    ) {
+        if (photo.isVideo) {
+            onComplete(false)
+            return
+        }
+        viewModelScope.launch {
+            try {
+                val resolved = resolvePhotonPhotoForOutput(photo)
+                val success = resolved?.let { (photoId, metadata) ->
+                    GalleryManager.exportPhoto(
+                        context = getApplication<Application>(),
+                        id = photoId,
+                        bitmap = null,
+                        photoProcessor = contentRepository.photoProcessor,
+                        metadata = metadata,
+                        sharpeningValue = 0f,
+                        noiseReductionValue = 0f,
+                        chromaNoiseReductionValue = 0f,
+                        photoQuality = photoQuality.firstOrNull() ?: 95,
+                        preferHeicExport = false,
+                        preferJpeg444Export = false,
+                    )
+                } ?: false
+                if (success) {
+                    exitEditMode()
+                    loadPhotos()
+                }
+                onComplete(success)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                PLog.e(TAG, "Failed JPEG render", e)
+                onComplete(false)
             }
         }
     }
