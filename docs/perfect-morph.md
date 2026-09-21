@@ -95,7 +95,7 @@ The production Morph branch now validates the finished architecture before every
 - Spatial RGB maps only to RGB/SPATIAL_RGB.
 - Spatial Bayer maps only to BAYER/SPATIAL_BAYER and resolves output scale to native 1.00x.
 - Bracket exposure remains enabled for both Spatial modes and disabled for Sabre.
-- Persistent Revert restores capture-time edit/development state while preserving live exportedUris and capture/library bookkeeping.
+- Persistent Revert keeps its dedicated baseline marker under unit test, while CI source invariants forbid the Revert serializer from assigning exportedUris; full restore behavior is additionally validated on-device because JSONObject/Rect are Android runtime classes.
 - Post-edit rotation/straighten/crop geometry regression tests run with the Morph build.
 - Multi-frame output-scale regression tests run with the Morph build.
 - Stage 1 UI/workflow markers, editor history, Revert and Spatial Bayer source invariants are checked before Gradle compilation.

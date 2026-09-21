@@ -39,6 +39,11 @@ jobs:
           grep -q 'fun revertCurrentPhotoToOriginal' app/src/main/java/com/hinnka/mycamera/viewmodel/GalleryViewModel.kt
           grep -q 'suspend fun revertPhotoToOriginal' app/src/main/java/com/hinnka/mycamera/gallery/GalleryManager.kt
           grep -q 'perfectMorph.revertBaseline.v1' app/src/main/java/com/hinnka/mycamera/gallery/MorphRevertBaseline.kt
+          grep -q 'current.copy(' app/src/main/java/com/hinnka/mycamera/gallery/MorphRevertBaseline.kt
+          if grep -q 'exportedUris[[:space:]]*=' app/src/main/java/com/hinnka/mycamera/gallery/MorphRevertBaseline.kt; then
+            echo 'Revert baseline must never overwrite exportedUris'
+            exit 1
+          fi
           grep -q 'edit_revert_original' app/src/main/java/com/hinnka/mycamera/ui/gallery/GalleryEditScreen.kt
           grep -q 'SPATIAL_BAYER' app/src/main/java/com/hinnka/mycamera/processor/MultiFrameStacker.kt
           grep -q 'Spatial Bayer \[Advanced\]' app/src/main/java/com/hinnka/mycamera/gallery/GalleryManager.kt
