@@ -945,7 +945,7 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
 
         if (update.useRaw?.value == true) {
             desiredUseMultipleExposure = false
-            desiredUseRawMax = true
+            desiredUseJpgMax = false
         } else if (update.useRaw?.value == false) {
             desiredUseRawMax = false
         }
@@ -957,14 +957,13 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
         if (update.useRawMax?.value == true) {
             desiredUseRaw = true
             desiredUseMultipleExposure = false
+            desiredUseJpgMax = false
         }
         if (update.useMultipleExposure?.value == true) {
             desiredUseRaw = false
             desiredUseJpgMax = false
             desiredUseRawMax = false
         }
-        // 专业模式与 HDR+ 是同一个拍摄能力，不再保留可独立关闭的状态。
-        desiredUseRawMax = desiredUseRaw
         val activeUseJpgMax = desiredUseJpgMax && !desiredUseRaw
         if (activeUseJpgMax && prefs.useLivePhoto) {
             cameraController.setUseLivePhoto(false)
@@ -4818,6 +4817,15 @@ class CameraViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             userPreferencesRepository.saveJpgMultiFrameDenoiseOutputScale(
                 MultiFrameConfig.normalizeOutputScale(scale)
+            )
+        }
+    }
+
+    /** Enable/disable HDR+/RAWmax independently of Classic RAW. */
+    fun setUseRawMax(enabled: Boolean) {
+        viewModelScope.launch {
+            applyCameraFeatureUpdate(
+                CameraFeatureUpdate(useRawMax = SettingValue(enabled))
             )
         }
     }

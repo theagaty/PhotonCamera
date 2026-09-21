@@ -606,7 +606,7 @@ class UserPreferencesRepository(private val context: Context) {
             } else {
                 storedUseRaw && legacyMultiFrameEnabled
             }
-            val useRawMax = requestedUseRawMax || storedUseRaw
+            val useRawMax = requestedUseRawMax
             // RAW/HDR+ and YUV denoise belong to different shooting modes. Keep the YUV
             // preference while professional mode is active so returning to PHOTO restores it.
             val useJpgMax = requestedUseJpgMax
