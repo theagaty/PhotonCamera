@@ -55,6 +55,12 @@ jobs:
           grep -q 'RawLegacyAutoExposureMatcher.createRequest' app/src/main/java/com/hinnka/mycamera/gallery/GalleryManager.kt
           grep -q 'capture.physicalRawCrop.master.*false' app/src/main/java/com/hinnka/mycamera/gallery/GalleryManager.kt
           grep -q 'GalleryManager.getRawRenderDngFile' app/src/main/java/com/hinnka/mycamera/gallery/PhotoProcessor.kt
+          # Guard upstream 1.28.3 modules that the Morph must preserve.
+          test -f app/src/main/java/com/hinnka/mycamera/raw/CanonPictureStyle.kt
+          test -f app/src/main/java/com/hinnka/mycamera/raw/MgcRaisrUpscale.kt
+          test -f app/src/main/java/com/hinnka/mycamera/raw/RawDigitalZoomResampling.kt
+          test -f app/src/main/java/com/hinnka/mycamera/ui/settings/AccentColorSetting.kt
+          test -f app/src/main/java/com/hinnka/mycamera/frame/FrameLiquidGlass.kt
           git show --check --oneline --no-patch HEAD
 
       - name: Set up JDK 17
