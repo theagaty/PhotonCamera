@@ -8,7 +8,7 @@ The working Photon 1.27.2.2 custom branch is intentionally left untouched.
 
 ## Design rules
 
-- Keep the newest v1.28.2.1 engine and compatibility work as the chassis.
+- Keep the newest v1.28.3 engine and compatibility work as the chassis.
 - Port older behavior only when there is a concrete workflow or RAW-flexibility reason.
 - Do not collapse Classic CFA, Spatial Bayer, and LinearRaw RGB into one ambiguous mode.
 - Build and verify each stage before starting the next RAW-stage change.
@@ -29,7 +29,7 @@ The working Photon 1.27.2.2 custom branch is intentionally left untouched.
 
 - Decouple RAW from RAWmax again.
 - Restore a selectable single-frame Classic CFA route.
-- Reuse the current v1.28.2.1 single-frame RAW save path rather than replacing the latest RAW writer wholesale.
+- Reuse the current v1.28.3 single-frame RAW save path rather than replacing the latest RAW writer wholesale.
 - Keep current Pro RAW behavior available independently.
 
 ## Stage 3 - v1.27.1 capture behavior
