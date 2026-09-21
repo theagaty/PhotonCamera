@@ -615,6 +615,20 @@ fun NavigationHost(
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
+
+    LaunchedEffect(currentRoute) {
+        val rotateWorkspace = currentRoute == Routes.GALLERY ||
+            currentRoute == Routes.PHOTO_DETAIL ||
+            currentRoute == Routes.BURST_DETAIL ||
+            currentRoute == Routes.PHOTO_EDIT ||
+            currentRoute == Routes.SETTINGS
+        (context as? MainActivity)?.requestedOrientation = if (rotateWorkspace) {
+            ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
+        } else {
+            ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        }
+    }
+
     val handleGalleryBack: () -> Unit = {
         if (externalGalleryReviewReturnToCaller) {
             onExternalGalleryReviewBack()

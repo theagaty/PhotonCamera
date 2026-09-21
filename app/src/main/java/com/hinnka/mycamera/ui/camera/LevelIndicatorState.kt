@@ -23,7 +23,8 @@ internal data class LevelIndicatorReading(
 /** Gravity uses device axes; the camera activity stays in portrait even when held sideways. */
 internal fun calculateLevelIndicatorReading(
     values: FloatArray,
-    previousMode: LevelIndicatorMode
+    previousMode: LevelIndicatorMode,
+    horizonLevelThresholdDegrees: Float = HorizonLevelThresholdDegrees,
 ): LevelIndicatorReading? {
     if (values.size < 3 || (0..2).any { !values[it].isFinite() }) return null
     val x = values[0].toDouble()
@@ -55,7 +56,7 @@ internal fun calculateLevelIndicatorReading(
         bubbleX = if (planarGravity > 0.0) (x / planarGravity * bubbleDistance).toFloat() else 0f,
         bubbleY = if (planarGravity > 0.0) (-y / planarGravity * bubbleDistance).toFloat() else 0f,
         isLevel = when (mode) {
-            LevelIndicatorMode.HORIZON -> horizonDeviation < HorizonLevelThresholdDegrees
+            LevelIndicatorMode.HORIZON -> horizonDeviation < horizonLevelThresholdDegrees
             LevelIndicatorMode.BUBBLE -> flatTiltDegrees < BubbleLevelThresholdDegrees
         }
     )
