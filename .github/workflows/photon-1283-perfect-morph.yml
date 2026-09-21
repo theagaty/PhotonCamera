@@ -61,6 +61,9 @@ jobs:
           test -f app/src/main/java/com/hinnka/mycamera/raw/RawDigitalZoomResampling.kt
           test -f app/src/main/java/com/hinnka/mycamera/ui/settings/AccentColorSetting.kt
           test -f app/src/main/java/com/hinnka/mycamera/frame/FrameLiquidGlass.kt
+          grep -q 'AccentColor' app/src/main/java/com/hinnka/mycamera/ui/gallery/GalleryScreen.kt
+          grep -q 'settings_raw_group_development' app/src/main/java/com/hinnka/mycamera/ui/settings/SettingsScreen.kt
+          grep -q 'rawOutputUpscaleMode.isMgcRaisr' app/src/main/java/com/hinnka/mycamera/ui/settings/SettingsScreen.kt
           git show --check --oneline --no-patch HEAD
 
       - name: Set up JDK 17
@@ -87,12 +90,12 @@ jobs:
             --tests com.hinnka.mycamera.gallery.PostEditGeometryTest \
             --tests com.hinnka.mycamera.viewmodel.MultiFrameOutputScaleTest
 
-      - name: Build default debug APK
-        run: ./gradlew assembleDefaultDebug --stacktrace
+      - name: Build all debug APK flavors
+        run: ./gradlew assembleDebug --stacktrace
 
-      - name: Upload APK
+      - name: Upload all debug APKs
         uses: actions/upload-artifact@v4
         with:
-          name: photon-1.28.3-perfect-morph-debug
-          path: app/build/outputs/apk/default/debug/*.apk
+          name: photon-1.28.3-perfect-morph-debug-all-flavors
+          path: app/build/outputs/apk/*/debug/*.apk
           if-no-files-found: error
