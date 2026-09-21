@@ -100,7 +100,7 @@ class PhotoProcessor(
 
         var source: GainmapSourceSet? = null
 
-        val dngFile = GalleryManager.getDngFile(context, photoId)
+        val dngFile = GalleryManager.getRawRenderDngFile(context, photoId)
         if (dngFile.exists()) {
             source = processDngForUltraHdr(
                 context = context,
@@ -506,7 +506,7 @@ class PhotoProcessor(
         chromaNoiseReduction: Float = 0f,
         onRawMetadata: ((RawMetadata) -> Unit)? = null
     ): Bitmap? {
-        val dngFile = GalleryManager.getDngFile(context, photoId)
+        val dngFile = GalleryManager.getRawRenderDngFile(context, photoId)
 
         if (metadata.hasAiDenoisedBase) {
             val aiFile = GalleryManager.getAiDenoiseFile(context, photoId)

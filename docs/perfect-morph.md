@@ -99,3 +99,17 @@ The production Morph branch now validates the finished architecture before every
 - Post-edit rotation/straighten/crop geometry regression tests run with the Morph build.
 - Multi-frame output-scale regression tests run with the Morph build.
 - Stage 1 UI/workflow markers, editor history, Revert and Spatial Bayer source invariants are checked before Gradle compilation.
+
+## Final Classic CFA experiment
+
+This stage is intentionally layered on top of the verified final-regression checkpoint.
+
+- The exported/master `original.dng` keeps the complete RAW_SENSOR Bayer payload and does not use the current software physical crop.
+- Its capture profile uses the 1.27.1-derived legacy viewfinder/spatial matcher for scalar BaselineExposure.
+- Photon HDR scene estimation, HDRNet capture preparation, capture PGTM and portrait-priority weighting are excluded from the master DNG preparation.
+- DNG DefaultCrop remains non-destructive framing metadata and does not remove master sensor pixels.
+- Photon no longer reopens the experimental master to create its own capture-day gallery JPEG.
+- A private `classic_render.dng` is produced from the proven current v1.28 physical-crop path and is used only for Photon rendering, RAW edit refresh, HDR preparation and Revert.
+- Original-format/DNG export always uses `original.dng`, never the render proxy.
+- If full-sensor master writing fails, the proxy is promoted to `original.dng` so a capture is never lost.
+- Spatial Bayer, Spatial RGB and Sabre routes are untouched.

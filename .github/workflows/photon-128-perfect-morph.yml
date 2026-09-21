@@ -49,6 +49,12 @@ jobs:
           grep -q 'Spatial Bayer \[Advanced\]' app/src/main/java/com/hinnka/mycamera/gallery/GalleryManager.kt
           grep -q 'ImageLayout.CFA' app/src/main/java/com/hinnka/mycamera/gallery/GalleryManager.kt
           grep -q 'settings_raw_max_mode_spatial_bayer' app/src/main/java/com/hinnka/mycamera/ui/settings/SettingsScreen.kt
+          grep -q 'CLASSIC_CFA_1271_FINAL' app/src/main/java/com/hinnka/mycamera/gallery/GalleryManager.kt
+          grep -q 'classic_render.dng' app/src/main/java/com/hinnka/mycamera/gallery/GalleryManager.kt
+          grep -q 'fun getRawRenderDngFile' app/src/main/java/com/hinnka/mycamera/gallery/GalleryManager.kt
+          grep -q 'RawLegacyAutoExposureMatcher.createRequest' app/src/main/java/com/hinnka/mycamera/gallery/GalleryManager.kt
+          grep -q 'capture.physicalRawCrop.master.*false' app/src/main/java/com/hinnka/mycamera/gallery/GalleryManager.kt
+          grep -q 'GalleryManager.getRawRenderDngFile' app/src/main/java/com/hinnka/mycamera/gallery/PhotoProcessor.kt
           git show --check --oneline --no-patch HEAD
 
       - name: Set up JDK 17
