@@ -3450,7 +3450,10 @@ object GalleryManager {
                     applyLensShadingCorrection = applyRawLensShading,
                     sourceBounds = physicalRawCrop.sourceBounds,
                     useCurrentGlContext = true,
-                    exportGpuLinearRgbSource = true,
+                    // RGB modes retain the stock GPU handoff. Spatial Bayer deliberately
+                    // materializes a CFA buffer because the persistent DNG itself must remain CFA.
+                    exportGpuLinearRgbSource =
+                        rawMaxSpatialOutputMode == MgcSpatialOutputMode.RGB,
                     gpuLinearRgbStorage = GpuLinearRgbStorage.RGBA16F,
                     enableHdrFusion = rawMaxHdrFusionEnabled,
                     mergeMethod = rawMaxMergeMethod,
@@ -3502,6 +3505,312 @@ object GalleryManager {
                 mgcSharpenAttenuationScale =
                     finalStackResult.mgcSharpenAttenuationScale,
             )
+            if (rawMaxSpatialOutputMode == MgcSpatialOutputMode.BAYER) {
+                DngCaptureDiagnostics.put("output.layout", "CFA")
+                DngCaptureDiagnostics.put("output.samplesPerPixel", 1)
+                DngCaptureDiagnostics.put("output.demosaicOwner", "EXTERNAL_RAW_EDITOR")
+                PLog.i(
+                    TAG,
+                    "Spatial Bayer [Advanced]: preserving merged CFA in DNG; " +
+                        "RGB FinishRaw conversion is bypassed",
+                )
+
+                val bayerBuffer = finalStackResult.fusedBayerBuffer
+                if (bayerBuffer == null ||
+                    finalStackResult.bufferLayout != RawStackBufferLayout.CFA
+                ) {
+                    PLog.e(
+                        TAG,
+                        "Spatial Bayer merge did not return a materialized CFA buffer " +
+                            "layout=${finalStackResult.bufferLayout}",
+                    )
+                    return@withContext
+                }
+
+                val bayerRawMetadata = mergeOutputMetadata.copy(
+                    blackLevel = FloatArray(4),
+                    whiteLevel = 65535f,
+                    frameCount = 1,
+                    mgcDenoiseCorrelation = null,
+                    mgcDenoiseReadNoise = null,
+                    mgcDenoiseShotNoise = null,
+                    mgcSpatialStrengthMap = null,
+                    mgcDenoiseTuningSnr = null,
+                )
+                val bayerOutputRawBlackBorderCrop =
+                    metadata.rawBlackBorderCrop.scaledForOutput(1f)
+                var bayerUpdatedMetadata = metadata
+                    .withNormalizedRawLevelCorrectionsCleared("MGC Spatial Bayer RAW stack")
+                    .copy(
+                        cropRegion = null,
+                        rawBlackBorderCrop = bayerOutputRawBlackBorderCrop,
+                        // Spatial Bayer intentionally does not bake the RGB FinishRaw denoise
+                        // stage into the persistent DNG. The multi-frame merge remains in CFA.
+                        rawDenoiseValue = 0f,
+                        rawChromaDenoiseValue = 0f,
+                    )
+
+                val bayerDefaultCrop = RawDefaultCropOverride.scaleToSize(
+                    crop = captureProcessingBounds,
+                    sourceWidth = physicalRawCrop.width,
+                    sourceHeight = physicalRawCrop.height,
+                    targetWidth = finalStackResult.width,
+                    targetHeight = finalStackResult.height,
+                ) ?: Rect(
+                    0,
+                    0,
+                    finalStackResult.width and -2,
+                    finalStackResult.height and -2,
+                )
+
+                val bayerWritten = trySaveStackedRawDng(
+                    context = context,
+                    photoId = photoId,
+                    dngFile = dngFile,
+                    fusedBayerBuffer = bayerBuffer,
+                    width = finalStackResult.width,
+                    height = finalStackResult.height,
+                    rawMetadata = bayerRawMetadata,
+                    stackBlackLevel = FloatArray(4),
+                    stackWhiteLevel = 65535,
+                    isNormalizedSensorData = true,
+                    characteristics = characteristics,
+                    captureResult = captureResult,
+                    rotation = rotation,
+                    aspectRatio = aspectRatio,
+                    capturePreviewThumbnail = capturePreviewThumbnail,
+                    thumbnail = null,
+                    metadata = bayerUpdatedMetadata,
+                    shouldAutoSave = shouldAutoSave,
+                    exportDngWithRawExport = exportDngWithRawExport,
+                    baselineExposureEv = finalStackResult.baselineExposureEv,
+                    profileGainTableMap = finalStackResult.profileGainTableMap,
+                    imageLayout = SuperResolutionDngWriter.ImageLayout.CFA,
+                    compression = SuperResolutionDngWriter.Compression.UNCOMPRESSED,
+                    inputRowStepSamples = finalStackResult.inputRowStepSamples
+                        ?: finalStackResult.width,
+                    inputColStepSamples = finalStackResult.inputColStepSamples ?: 1,
+                    pixelsIncludeLensShadingCorrection =
+                        finalStackResult.lensShadingCorrectionApplied,
+                    defaultCrop = bayerDefaultCrop,
+                )
+                if (!bayerWritten) {
+                    PLog.e(TAG, "Failed to persist Spatial Bayer CFA DNG")
+                    return@withContext
+                }
+
+                val bayerRawSharpening = bayerUpdatedMetadata.sharpening
+                    ?: RawSharpeningDefaults.normalize(sharpeningValue)
+                val bayerRawNoiseReduction =
+                    resolveNoiseReduction(bayerUpdatedMetadata, noiseReductionValue)
+                val bayerRawChromaNoiseReduction =
+                    bayerUpdatedMetadata.chromaNoiseReduction
+                        ?: ChromaDenoiseDefaults.forRawCapture(chromaNoiseReductionValue)
+
+                val bayerRawResult = processor.processForHdrSources(
+                    context,
+                    dngFile.absolutePath,
+                    includeHdrReference = bayerUpdatedMetadata.manualHdrEffectEnabled,
+                    aspectRatio = aspectRatio,
+                    cropRegion = bayerUpdatedMetadata.cropRegion,
+                    rotation = rotation,
+                    exposureBias = exposureBias ?: 0f,
+                    rawExposureCompensation =
+                        bayerUpdatedMetadata.rawExposureCompensation ?: 0f,
+                    rawHighlightsAdjustment =
+                        bayerUpdatedMetadata.rawHighlightsAdjustment ?: 0f,
+                    rawShadowsAdjustment =
+                        bayerUpdatedMetadata.rawShadowsAdjustment ?: 0f,
+                    rawBlackPointCorrection =
+                        bayerUpdatedMetadata.rawBlackPointCorrection ?: 0f,
+                    rawWhitePointCorrection =
+                        bayerUpdatedMetadata.rawWhitePointCorrection ?: 0f,
+                    applyLensShadingCorrection =
+                        resolveRawLensShadingCorrectionEnabled(
+                            context,
+                            bayerUpdatedMetadata,
+                        ),
+                    rawBlackLevelMode = bayerUpdatedMetadata.rawBlackLevelMode,
+                    rawCustomBlackLevel = bayerUpdatedMetadata.rawCustomBlackLevel,
+                    rawWhiteLevelMode = bayerUpdatedMetadata.rawWhiteLevelMode,
+                    rawCustomWhiteLevel = bayerUpdatedMetadata.rawCustomWhiteLevel,
+                    sharpeningValue = bayerRawSharpening,
+                    processLocalQualityTuningSensorAreaMm2 =
+                        PhotonSensorSizeTuning.areaFromProperties(
+                            bayerUpdatedMetadata.customProperties,
+                        ),
+                    processLocalMgcSharpenTuningSnr =
+                        finalStackResult.mgcSharpenTuningSnr,
+                    processLocalMgcSharpenAttenuationScale =
+                        finalStackResult.mgcSharpenAttenuationScale,
+                    denoiseValue = bayerRawNoiseReduction,
+                    chromaDenoiseValue = bayerRawChromaNoiseReduction,
+                    rawDcpId = bayerUpdatedMetadata.rawDcpId,
+                    rawEmbeddedDngProfileId =
+                        bayerUpdatedMetadata.rawEmbeddedDngProfileId,
+                    rawNoiseProfileId =
+                        resolveRawNoiseProfileId(context, bayerUpdatedMetadata),
+                    rawHncsProfileId = bayerUpdatedMetadata.rawHncsProfileId,
+                    rawHncsRenderIntent = bayerUpdatedMetadata.rawHncsRenderIntent,
+                    rawHncsFilmCurveMode =
+                        bayerUpdatedMetadata.rawHncsFilmCurveMode,
+                    rawRenderingEngine = bayerUpdatedMetadata.rawRenderingEngine,
+                    rawToneMappingParameters =
+                        bayerUpdatedMetadata.rawToneMappingParameters,
+                    rawCfaCorrectionMode =
+                        bayerUpdatedMetadata.rawCfaCorrectionMode,
+                    rawBlackBorderCrop = bayerUpdatedMetadata.rawBlackBorderCrop,
+                    spectralFilmStock = bayerUpdatedMetadata.spectralFilmStock,
+                    spectralFilmPrint = bayerUpdatedMetadata.spectralFilmPrint,
+                    spectralFilmTuning = SpectralFilmTuning(
+                        cDensityGain =
+                            bayerUpdatedMetadata.spectralFilmCDensityGain,
+                        mDensityGain =
+                            bayerUpdatedMetadata.spectralFilmMDensityGain,
+                        yDensityGain =
+                            bayerUpdatedMetadata.spectralFilmYDensityGain,
+                    ),
+                    onMetadata = { raw ->
+                        bayerUpdatedMetadata = bayerUpdatedMetadata.merge(raw)
+                    },
+                ) ?: return@withContext
+
+                var bayerBitmap = bayerRawResult.sdrBitmap
+                if (bayerUpdatedMetadata.isMirrored) {
+                    bayerBitmap = BitmapUtils.flipHorizontal(bayerBitmap)
+                }
+                bayerUpdatedMetadata = bayerUpdatedMetadata.copy(
+                    width = bayerBitmap.width,
+                    height = bayerBitmap.height,
+                    sharpening = bayerRawSharpening,
+                    chromaNoiseReduction = bayerRawChromaNoiseReduction,
+                )
+
+                val bayerJpegWritten = FileOutputStream(tempFile).use { outputStream ->
+                    writeFinalJpeg(bayerBitmap, outputStream, photoQuality)
+                }
+                if (!bayerJpegWritten) {
+                    tempFile.delete()
+                    throw IOException("Failed to encode Spatial Bayer preview JPEG for $photoId")
+                }
+                if (!tempFile.renameTo(photoFile)) {
+                    tempFile.delete()
+                    throw IOException("Failed to publish Spatial Bayer preview JPEG for $photoId")
+                }
+                saveMetadata(context, photoId, bayerUpdatedMetadata)
+                PLog.i(
+                    TAG,
+                    "Spatial Bayer [Advanced] published CFA DNG + internal preview " +
+                        "size=${finalStackResult.width}x${finalStackResult.height}",
+                )
+
+                val bayerBokehBitmap = renderAndSaveBokehPhoto(
+                    context,
+                    photoId,
+                    bayerUpdatedMetadata,
+                    bayerBitmap,
+                )
+                val preparedBayerUltraHdrSource =
+                    if (bayerUpdatedMetadata.manualHdrEffectEnabled) {
+                        photoProcessor.prepareUltraHdrSourceFromRawResult(
+                            context = context,
+                            photoId = photoId,
+                            rawResult = bayerRawResult,
+                            metadata = bayerUpdatedMetadata,
+                            sharpening = sharpeningValue,
+                            noiseReduction = noiseReductionValue,
+                            chromaNoiseReduction = chromaNoiseReductionValue,
+                            applyMirror = true,
+                            preparedSdrBitmap = bayerBokehBitmap,
+                        )
+                    } else {
+                        null
+                    }
+                val preparedBayerGainmapResult =
+                    preparedBayerUltraHdrSource?.let { source ->
+                        var result: GainmapResult? = null
+                        val gainmapElapsed = measureTimeMillis {
+                            result = gainmapProducer.build(
+                                source,
+                                HdrGainmapStrength.coerce(
+                                    bayerUpdatedMetadata.hdrEffectStrength,
+                                ),
+                            )
+                        }
+                        PLog.d(
+                            TAG,
+                            "Spatial Bayer prepared gainmap for reuse, " +
+                                "took=${gainmapElapsed}ms",
+                        )
+                        result
+                    }
+                preparedBayerUltraHdrSource?.let {
+                    buildDetailHdrCache(
+                        context = context,
+                        photoId = photoId,
+                        metadata = bayerUpdatedMetadata,
+                        sharpening = sharpeningValue,
+                        noiseReduction = noiseReductionValue,
+                        chromaNoiseReduction = chromaNoiseReductionValue,
+                        preparedUltraHdrSource = it,
+                        preparedGainmapResult = preparedBayerGainmapResult,
+                    )
+                }
+
+                updateThumbnail(
+                    context,
+                    photoId,
+                    photoProcessor,
+                    bayerUpdatedMetadata,
+                    bayerBitmap,
+                )
+                if (shouldAutoSave) {
+                    val jpegExported = exportPhoto(
+                        context,
+                        photoId,
+                        bayerBitmap,
+                        photoProcessor,
+                        bayerUpdatedMetadata,
+                        sharpeningValue,
+                        noiseReductionValue,
+                        chromaNoiseReductionValue,
+                        photoQuality,
+                        preparedUltraHdrSource = preparedBayerUltraHdrSource,
+                        preparedGainmapResult = preparedBayerGainmapResult,
+                    )
+                    if (!jpegExported) {
+                        PLog.e(
+                            TAG,
+                            "Spatial Bayer JPEG auto-export failed for photo $photoId",
+                        )
+                    }
+                }
+
+                preparedBayerUltraHdrSource?.hdrReference?.bitmap?.let {
+                    if (!it.isRecycled) it.recycle()
+                }
+                preparedBayerUltraHdrSource?.lutLuminanceGainMap?.bitmap?.let {
+                    if (!it.isRecycled) it.recycle()
+                }
+                preparedBayerUltraHdrSource?.sdrBase?.let {
+                    if (it !== bayerBitmap &&
+                        it !== bayerBokehBitmap &&
+                        !it.isRecycled
+                    ) {
+                        it.recycle()
+                    }
+                }
+                if (bayerBokehBitmap !== bayerBitmap &&
+                    !bayerBokehBitmap.isRecycled
+                ) {
+                    bayerBokehBitmap.recycle()
+                }
+                if (!bayerBitmap.isRecycled) {
+                    bayerBitmap.recycle()
+                }
+                return@withContext
+            }
+
             val configuredRawMaxLumaStrength = RawDenoiseDefaults.normalize(
                 metadata.rawDenoiseValue ?: RawDenoiseDefaults.RAW_MAX_LUMA_STRENGTH
             )

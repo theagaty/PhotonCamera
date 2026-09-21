@@ -2026,12 +2026,30 @@ fun SettingsScreen(
                             title = stringResource(R.string.settings_raw_max_spatial_mode),
                             description = stringResource(R.string.settings_raw_max_spatial_mode_description),
                             levels = listOf(
-                                MgcRawMaxMode.SPATIAL to stringResource(R.string.settings_raw_max_mode_spatial),
-                                MgcRawMaxMode.SABRE to stringResource(R.string.settings_raw_max_mode_sabre),
+                                MgcRawMaxMode.SPATIAL_BAYER to stringResource(
+                                    R.string.settings_raw_max_mode_spatial_bayer
+                                ),
+                                MgcRawMaxMode.SPATIAL to stringResource(
+                                    R.string.settings_raw_max_mode_spatial
+                                ),
+                                MgcRawMaxMode.SABRE to stringResource(
+                                    R.string.settings_raw_max_mode_sabre
+                                ),
                             ),
                             currentLevel = hdrPlusMergeMode,
                             onLevelSelected = viewModel::setHdrPlusMergeMode,
                         )
+
+                        if (hdrPlusMergeMode == MgcRawMaxMode.SPATIAL_BAYER) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = stringResource(
+                                    R.string.settings_raw_max_mode_spatial_bayer_description
+                                ),
+                                color = Color.White.copy(alpha = 0.65f),
+                                fontSize = 13.sp,
+                            )
+                        }
 
                         HorizontalDivider(
                             color = Color.White.copy(alpha = 0.1f),
@@ -2121,27 +2139,44 @@ fun SettingsScreen(
                             modifier = Modifier.padding(vertical = 12.dp)
                         )
 
-                        val valueFormat = stringResource(R.string.settings_raw_max_output_scale_value)
-                        SliderSettingItem(
-                            title = stringResource(R.string.settings_raw_max_output_scale),
-                            description = stringResource(
-                                R.string.settings_raw_max_output_scale_description
-                            ),
-                            value = rawMaxOutputScaleUi,
-                            valueRange = MultiFrameConfig.MIN_OUTPUT_SCALE..MultiFrameConfig.MAX_OUTPUT_SCALE,
-                            resetValue = MultiFrameConfig.DEFAULT_SUPER_RESOLUTION_SCALE,
-                            onResetValue = { scale ->
-                                rawMaxOutputScaleUi = scale
-                                viewModel.setRawMaxOutputScale(scale)
-                            },
-                            onValueChange = {
-                                rawMaxOutputScaleUi = MultiFrameConfig.normalizeOutputScale(it)
-                            },
-                            onValueChangeFinished = {
-                                viewModel.setRawMaxOutputScale(rawMaxOutputScaleUi)
-                            },
-                            valueTextFormatter = { scale -> String.format(valueFormat, scale) }
-                        )
+                        if (hdrPlusMergeMode == MgcRawMaxMode.SPATIAL_BAYER) {
+                            Text(
+                                text = stringResource(
+                                    R.string.settings_raw_max_spatial_bayer_scale_fixed
+                                ),
+                                color = Color.White.copy(alpha = 0.72f),
+                                fontSize = 13.sp,
+                            )
+                        } else {
+                            val valueFormat = stringResource(
+                                R.string.settings_raw_max_output_scale_value
+                            )
+                            SliderSettingItem(
+                                title = stringResource(R.string.settings_raw_max_output_scale),
+                                description = stringResource(
+                                    R.string.settings_raw_max_output_scale_description
+                                ),
+                                value = rawMaxOutputScaleUi,
+                                valueRange =
+                                    MultiFrameConfig.MIN_OUTPUT_SCALE..
+                                        MultiFrameConfig.MAX_OUTPUT_SCALE,
+                                resetValue = MultiFrameConfig.DEFAULT_SUPER_RESOLUTION_SCALE,
+                                onResetValue = { scale ->
+                                    rawMaxOutputScaleUi = scale
+                                    viewModel.setRawMaxOutputScale(scale)
+                                },
+                                onValueChange = {
+                                    rawMaxOutputScaleUi =
+                                        MultiFrameConfig.normalizeOutputScale(it)
+                                },
+                                onValueChangeFinished = {
+                                    viewModel.setRawMaxOutputScale(rawMaxOutputScaleUi)
+                                },
+                                valueTextFormatter = { scale ->
+                                    String.format(valueFormat, scale)
+                                }
+                            )
+                        }
 
                         HorizontalDivider(
                             color = Color.White.copy(alpha = 0.1f),

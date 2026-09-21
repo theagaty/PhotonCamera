@@ -18,20 +18,25 @@ class MgcMergeMethodTest {
         assertEquals(MgcMergeMethod.SABRE, MgcRawMaxMode.SABRE.mergeMethod)
         assertEquals(MgcSpatialOutputMode.RGB, MgcRawMaxMode.SPATIAL.outputMode)
         assertEquals(MgcMergeMethod.SPATIAL_RGB, MgcRawMaxMode.SPATIAL.mergeMethod)
+        assertEquals(MgcSpatialOutputMode.BAYER, MgcRawMaxMode.SPATIAL_BAYER.outputMode)
+        assertEquals(MgcMergeMethod.SPATIAL_BAYER, MgcRawMaxMode.SPATIAL_BAYER.mergeMethod)
     }
 
     @Test
-    fun bothRawMaxModesPreserveRequestedRgbOutputScale() {
-        MgcRawMaxMode.entries.forEach { mode ->
-            assertEquals(
-                1.5f,
-                resolveRawStackOutputScale(mode.outputMode, 1.5f),
-                0f,
-            )
-        }
+    fun rawMaxModesResolveOutputScaleByPixelLayout() {
+        assertEquals(
+            1.5f,
+            resolveRawStackOutputScale(MgcRawMaxMode.SABRE.outputMode, 1.5f),
+            0f,
+        )
+        assertEquals(
+            1.5f,
+            resolveRawStackOutputScale(MgcRawMaxMode.SPATIAL.outputMode, 1.5f),
+            0f,
+        )
         assertEquals(
             1f,
-            resolveRawStackOutputScale(MgcSpatialOutputMode.BAYER, 1.5f),
+            resolveRawStackOutputScale(MgcRawMaxMode.SPATIAL_BAYER.outputMode, 1.5f),
             0f,
         )
     }

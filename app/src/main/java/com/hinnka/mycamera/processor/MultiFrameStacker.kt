@@ -35,22 +35,28 @@ enum class MgcMergeMethod(val mgcValue: Int) {
 /** HDR+ fusion modes exposed in professional-mode settings. */
 enum class MgcRawMaxMode {
     SABRE,
-    SPATIAL;
+    SPATIAL,
+    /** Multi-frame Spatial merge that preserves one CFA/Bayer sample per output pixel. */
+    SPATIAL_BAYER;
 
     companion object {
         val DEFAULT: MgcRawMaxMode = SABRE
     }
 
     val supportsBracketExposure: Boolean
-        get() = this == SPATIAL
+        get() = this != SABRE
 
     val outputMode: MgcSpatialOutputMode
-        get() = MgcSpatialOutputMode.RGB
+        get() = when (this) {
+            SABRE, SPATIAL -> MgcSpatialOutputMode.RGB
+            SPATIAL_BAYER -> MgcSpatialOutputMode.BAYER
+        }
 
     val mergeMethod: MgcMergeMethod
         get() = when (this) {
             SABRE -> MgcMergeMethod.SABRE
             SPATIAL -> MgcMergeMethod.SPATIAL_RGB
+            SPATIAL_BAYER -> MgcMergeMethod.SPATIAL_BAYER
         }
 }
 

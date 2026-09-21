@@ -40,6 +40,10 @@ jobs:
           grep -q 'suspend fun revertPhotoToOriginal' app/src/main/java/com/hinnka/mycamera/gallery/GalleryManager.kt
           grep -q 'perfectMorph.revertBaseline.v1' app/src/main/java/com/hinnka/mycamera/gallery/MorphRevertBaseline.kt
           grep -q 'edit_revert_original' app/src/main/java/com/hinnka/mycamera/ui/gallery/GalleryEditScreen.kt
+          grep -q 'SPATIAL_BAYER' app/src/main/java/com/hinnka/mycamera/processor/MultiFrameStacker.kt
+          grep -q 'Spatial Bayer \[Advanced\]' app/src/main/java/com/hinnka/mycamera/gallery/GalleryManager.kt
+          grep -q 'ImageLayout.CFA' app/src/main/java/com/hinnka/mycamera/gallery/GalleryManager.kt
+          grep -q 'settings_raw_max_mode_spatial_bayer' app/src/main/java/com/hinnka/mycamera/ui/settings/SettingsScreen.kt
           git show --check --oneline --no-patch HEAD
 
       - name: Set up JDK 17

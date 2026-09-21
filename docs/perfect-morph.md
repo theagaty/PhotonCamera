@@ -71,3 +71,17 @@ Built on the stable Stage 2 RAW foundation.
 - Exported system-gallery copies are never deleted, overwritten or modified; exportedUris remain on the live photo record.
 - After Revert, the editor session is rebuilt from the restored capture state, so Reset All returns to disabled until new edits are made.
 - Legacy photos created before this feature did not have a historical capture baseline; the first state seen by this build is preserved safely as their baseline.
+
+## Spatial Bayer [Advanced]
+
+Implemented after the stable Classic CFA + editor-history/Revert checkpoints.
+
+- Adds a third HDR+/RAWmax merge choice: Spatial Bayer [Advanced].
+- Uses the existing MGC SPATIAL_BAYER merge implementation; the merge engine itself is not redesigned.
+- Multi-frame alignment/rejection/fusion occurs before persistence, but the persistent DNG remains CFA/Bayer with one sample per pixel.
+- Lightroom/ACR or another RAW editor still owns the final demosaic.
+- Spatial Bayer DNG output is native 1.00x CFA resolution; RGB-only output scaling is hidden for this mode.
+- The RGB FinishRaw conversion/denoise stage is intentionally bypassed for the persistent Bayer DNG.
+- Photon still renders an internal JPEG preview from the saved CFA DNG so gallery/editing workflows remain intact.
+- Sabre remains RGB/SABRE and Spatial remains RGB/SPATIAL_RGB without routing changes.
+- Spatial Bayer supports the same Spatial bracket-exposure planner; Sabre remains bracket-disabled.
