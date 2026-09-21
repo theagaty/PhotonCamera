@@ -543,7 +543,7 @@ fun GalleryScreen(
                                         imageVector = AppIcons.AutoAwesome,
                                         contentDescription = stringResource(R.string.render),
                                         tint = if (canRender) {
-                                            AccentOrange
+                                            AccentColor
                                         } else {
                                             Color.White.copy(alpha = 0.38f)
                                         },

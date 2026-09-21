@@ -1165,7 +1165,6 @@ fun SettingsScreen(
                         )
                     }
 
-                    }
                     Spacer(modifier = Modifier.height(24.dp))
 
                     SettingsSection(
@@ -2031,82 +2030,88 @@ fun SettingsScreen(
                                 fontSize = 13.sp,
                             )
                         } else {
-                        QualityLevelSetting(
-                            title = stringResource(R.string.settings_raw_max_spatial_mode),
-                            description = stringResource(R.string.settings_raw_max_spatial_mode_description),
-                            levels = listOf(
-                                MgcRawMaxMode.SPATIAL_BAYER to stringResource(
-                                    R.string.settings_raw_max_mode_spatial_bayer
+                            QualityLevelSetting(
+                                title = stringResource(R.string.settings_raw_max_spatial_mode),
+                                description = stringResource(
+                                    R.string.settings_raw_max_spatial_mode_description
                                 ),
-                                MgcRawMaxMode.SPATIAL to stringResource(
-                                    R.string.settings_raw_max_mode_spatial
+                                levels = listOf(
+                                    MgcRawMaxMode.SPATIAL_BAYER to stringResource(
+                                        R.string.settings_raw_max_mode_spatial_bayer
+                                    ),
+                                    MgcRawMaxMode.SPATIAL to stringResource(
+                                        R.string.settings_raw_max_mode_spatial
+                                    ),
+                                    MgcRawMaxMode.SABRE to stringResource(
+                                        R.string.settings_raw_max_mode_sabre
+                                    ),
                                 ),
-                                MgcRawMaxMode.SABRE to stringResource(
-                                    R.string.settings_raw_max_mode_sabre
-                                ),
-                            ),
-                            currentLevel = hdrPlusMergeMode,
-                            onLevelSelected = viewModel::setHdrPlusMergeMode,
-                        )
-
-                        if (hdrPlusMergeMode == MgcRawMaxMode.SPATIAL_BAYER) {
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = stringResource(
-                                    R.string.settings_raw_max_mode_spatial_bayer_description
-                                ),
-                                color = Color.White.copy(alpha = 0.65f),
-                                fontSize = 13.sp,
+                                currentLevel = hdrPlusMergeMode,
+                                onLevelSelected = viewModel::setHdrPlusMergeMode,
                             )
-                        }
 
-                        HorizontalDivider(
-                            color = Color.White.copy(alpha = 0.1f),
-                            modifier = Modifier.padding(vertical = 12.dp)
-                        )
-
-                        SliderSettingItem(
-                            title = stringResource(R.string.settings_hdr_plus_frame_count),
-                            description = stringResource(
-                                R.string.settings_hdr_plus_frame_count_description
-                            ),
-                            value = hdrPlusFrameCountSliderValue,
-                            valueRange = (if (effectiveHdrPlusBracketExposure) {
-                                MultiFrameConfig.MIN_HDR_PLUS_BRACKET_FRAME_COUNT
-                            } else {
-                                MultiFrameConfig.MIN_HDR_PLUS_FRAME_COUNT
-                            }).toFloat()..
-                                MultiFrameConfig.MAX_FRAME_COUNT.toFloat(),
-                            onValueChange = {
-                                hdrPlusFrameCountSliderValue = it.roundToInt().toFloat()
-                            },
-                            resetValue = MultiFrameConfig.DEFAULT_HDR_PLUS_FRAME_COUNT.toFloat(),
-                            onValueChangeFinished = {
-                                viewModel.setHdrPlusFrameCount(
-                                    hdrPlusFrameCountSliderValue.roundToInt()
+                            if (hdrPlusMergeMode == MgcRawMaxMode.SPATIAL_BAYER) {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = stringResource(
+                                        R.string.settings_raw_max_mode_spatial_bayer_description
+                                    ),
+                                    color = Color.White.copy(alpha = 0.65f),
+                                    fontSize = 13.sp,
                                 )
-                            },
-                            valueTextFormatter = { it.roundToInt().toString() }
-                        )
+                            }
 
-                        HorizontalDivider(
-                            color = Color.White.copy(alpha = 0.1f),
-                            modifier = Modifier.padding(vertical = 12.dp)
-                        )
+                            HorizontalDivider(
+                                color = Color.White.copy(alpha = 0.1f),
+                                modifier = Modifier.padding(vertical = 12.dp)
+                            )
 
-                        SwitchSettingItem(
-                            title = stringResource(R.string.settings_hdr_plus_bracket_exposure),
-                            description = stringResource(
-                                if (hdrPlusMergeMode.supportsBracketExposure) {
-                                    R.string.settings_hdr_plus_bracket_exposure_description
+                            SliderSettingItem(
+                                title = stringResource(R.string.settings_hdr_plus_frame_count),
+                                description = stringResource(
+                                    R.string.settings_hdr_plus_frame_count_description
+                                ),
+                                value = hdrPlusFrameCountSliderValue,
+                                valueRange = (if (effectiveHdrPlusBracketExposure) {
+                                    MultiFrameConfig.MIN_HDR_PLUS_BRACKET_FRAME_COUNT
                                 } else {
-                                    R.string.settings_hdr_plus_bracket_exposure_sabre_disabled
-                                }
-                            ),
-                            checked = effectiveHdrPlusBracketExposure,
-                            onCheckedChange = viewModel::setHdrPlusBracketExposureEnabled,
-                            enabled = hdrPlusMergeMode.supportsBracketExposure,
-                        )
+                                    MultiFrameConfig.MIN_HDR_PLUS_FRAME_COUNT
+                                }).toFloat()..
+                                    MultiFrameConfig.MAX_FRAME_COUNT.toFloat(),
+                                onValueChange = {
+                                    hdrPlusFrameCountSliderValue = it.roundToInt().toFloat()
+                                },
+                                resetValue =
+                                    MultiFrameConfig.DEFAULT_HDR_PLUS_FRAME_COUNT.toFloat(),
+                                onValueChangeFinished = {
+                                    viewModel.setHdrPlusFrameCount(
+                                        hdrPlusFrameCountSliderValue.roundToInt()
+                                    )
+                                },
+                                valueTextFormatter = { it.roundToInt().toString() }
+                            )
+
+                            HorizontalDivider(
+                                color = Color.White.copy(alpha = 0.1f),
+                                modifier = Modifier.padding(vertical = 12.dp)
+                            )
+
+                            SwitchSettingItem(
+                                title = stringResource(
+                                    R.string.settings_hdr_plus_bracket_exposure
+                                ),
+                                description = stringResource(
+                                    if (hdrPlusMergeMode.supportsBracketExposure) {
+                                        R.string.settings_hdr_plus_bracket_exposure_description
+                                    } else {
+                                        R.string.settings_hdr_plus_bracket_exposure_sabre_disabled
+                                    }
+                                ),
+                                checked = effectiveHdrPlusBracketExposure,
+                                onCheckedChange =
+                                    viewModel::setHdrPlusBracketExposureEnabled,
+                                enabled = hdrPlusMergeMode.supportsBracketExposure,
+                            )
                         }
 
                         HorizontalDivider(
@@ -2133,13 +2138,15 @@ fun SettingsScreen(
 
                     Spacer(modifier = Modifier.height(24.dp))
 
-                    if (useRawMax) {
+                    // Keep 1.28.3 RAW quality/digital-zoom controls available for Classic too.
                     SettingsSection(
                         title = stringResource(R.string.settings_professional_group_image_quality)
                     ) {
                         SwitchSettingItem(
                             title = stringResource(R.string.settings_raw_max_quality_tuning),
-                            description = stringResource(R.string.settings_raw_max_quality_tuning_description),
+                            description = stringResource(
+                                R.string.settings_raw_max_quality_tuning_description
+                            ),
                             checked = rawMaxQualityTuningEnabled,
                             onCheckedChange = viewModel::setRawMaxQualityTuningEnabled,
                         )
@@ -2149,8 +2156,12 @@ fun SettingsScreen(
                         )
 
                         SwitchSettingItem(
-                            title = stringResource(R.string.settings_raw_digital_zoom_resampling),
-                            description = stringResource(R.string.settings_raw_digital_zoom_resampling_description),
+                            title = stringResource(
+                                R.string.settings_raw_digital_zoom_resampling
+                            ),
+                            description = stringResource(
+                                R.string.settings_raw_digital_zoom_resampling_description
+                            ),
                             checked = rawDigitalZoomResamplingEnabled,
                             onCheckedChange = viewModel::setRawDigitalZoomResamplingEnabled,
                         )
@@ -2159,7 +2170,9 @@ fun SettingsScreen(
                             modifier = Modifier.padding(vertical = 12.dp)
                         )
 
-                        if (hdrPlusMergeMode == MgcRawMaxMode.SPATIAL_BAYER) {
+                        if (useRawMax &&
+                            hdrPlusMergeMode == MgcRawMaxMode.SPATIAL_BAYER
+                        ) {
                             Text(
                                 text = stringResource(
                                     R.string.settings_raw_max_spatial_bayer_scale_fixed
@@ -2169,7 +2182,9 @@ fun SettingsScreen(
                             )
                         } else {
                             QualityLevelSetting(
-                                title = stringResource(R.string.settings_raw_output_upscale_mode),
+                                title = stringResource(
+                                    R.string.settings_raw_output_upscale_mode
+                                ),
                                 description = stringResource(
                                     R.string.settings_raw_output_upscale_mode_description
                                 ),
@@ -2190,11 +2205,14 @@ fun SettingsScreen(
                                 modifier = Modifier.padding(vertical = 12.dp)
                             )
 
-                            val valueFormat =
-                                stringResource(R.string.settings_raw_max_output_scale_value)
+                            val valueFormat = stringResource(
+                                R.string.settings_raw_max_output_scale_value
+                            )
                             val raisrUpscaleActive = rawOutputUpscaleMode.isMgcRaisr
                             SliderSettingItem(
-                                title = stringResource(R.string.settings_raw_max_output_scale),
+                                title = stringResource(
+                                    R.string.settings_raw_max_output_scale
+                                ),
                                 description = stringResource(
                                     if (raisrUpscaleActive) {
                                         R.string.settings_raw_max_output_scale_description_raisr
@@ -2206,7 +2224,8 @@ fun SettingsScreen(
                                 valueRange =
                                     MultiFrameConfig.MIN_OUTPUT_SCALE..
                                         MultiFrameConfig.MAX_OUTPUT_SCALE,
-                                resetValue = MultiFrameConfig.DEFAULT_SUPER_RESOLUTION_SCALE,
+                                resetValue =
+                                    MultiFrameConfig.DEFAULT_SUPER_RESOLUTION_SCALE,
                                 onResetValue = { scale ->
                                     rawMaxOutputScaleUi = scale
                                     viewModel.setRawMaxOutputScale(scale)
@@ -2231,7 +2250,9 @@ fun SettingsScreen(
                         )
 
                         SliderSettingItem(
-                            title = stringResource(R.string.settings_raw_max_default_sharpening),
+                            title = stringResource(
+                                R.string.settings_raw_max_default_sharpening
+                            ),
                             description = stringResource(
                                 R.string.settings_raw_max_default_sharpening_description
                             ),
@@ -2257,7 +2278,8 @@ fun SettingsScreen(
                                 profileIdsByLens = rawNoiseProfileIdsByLens,
                                 availableProfiles = availableRawNoiseProfiles,
                                 onSelectProfile = viewModel::setRawNoiseProfileId,
-                                onProfileIdsByLensChange = viewModel::setRawNoiseProfileIdsByLens,
+                                onProfileIdsByLensChange =
+                                    viewModel::setRawNoiseProfileIdsByLens,
                                 onImportProfile = {
                                     importRawNoiseProfileLauncher.launch(arrayOf("*/*"))
                                 },
@@ -2282,7 +2304,9 @@ fun SettingsScreen(
                         }
 
                         SliderSettingItem(
-                            title = stringResource(R.string.settings_raw_max_default_luma_denoise),
+                            title = stringResource(
+                                R.string.settings_raw_max_default_luma_denoise
+                            ),
                             description = stringResource(
                                 R.string.settings_raw_max_default_luma_denoise_description
                             ),
@@ -2302,7 +2326,9 @@ fun SettingsScreen(
                         )
 
                         SliderSettingItem(
-                            title = stringResource(R.string.settings_raw_max_default_chroma_denoise),
+                            title = stringResource(
+                                R.string.settings_raw_max_default_chroma_denoise
+                            ),
                             description = stringResource(
                                 R.string.settings_raw_max_default_chroma_denoise_description
                             ),
@@ -2317,11 +2343,7 @@ fun SettingsScreen(
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(24.dp))
 
-                    SettingsSection(
-                        title = stringResource(R.string.settings_raw_group_development)
-                    ) {
                         RawEditPanel(
                         selectedDcpId = rawDcpId,
                         rawDcpIdsByLens = rawDcpIdsByLens,
@@ -2435,6 +2457,7 @@ fun SettingsScreen(
                         )
                     }
                 }
+
 
                 SettingsPage.PHANTOM -> {
                     if (DeviceUtil.canShowPhantom) {
