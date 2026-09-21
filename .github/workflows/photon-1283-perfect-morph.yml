@@ -2,9 +2,6 @@ name: Photon 1.28.3 Perfect Morph
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - 'hybrid/1.28.3-perfect-morph-v1'
 
 concurrency:
   group: photon-perfect-morph-${{ github.ref }}
