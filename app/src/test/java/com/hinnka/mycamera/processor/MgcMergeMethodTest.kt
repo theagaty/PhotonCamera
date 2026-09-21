@@ -23,6 +23,13 @@ class MgcMergeMethodTest {
     }
 
     @Test
+    fun bracketExposureSupportMatchesMergeSemantics() {
+        assertEquals(false, MgcRawMaxMode.SABRE.supportsBracketExposure)
+        assertEquals(true, MgcRawMaxMode.SPATIAL.supportsBracketExposure)
+        assertEquals(true, MgcRawMaxMode.SPATIAL_BAYER.supportsBracketExposure)
+    }
+
+    @Test
     fun rawMaxModesResolveOutputScaleByPixelLayout() {
         assertEquals(
             1.5f,

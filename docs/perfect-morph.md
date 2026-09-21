@@ -85,3 +85,17 @@ Implemented after the stable Classic CFA + editor-history/Revert checkpoints.
 - Photon still renders an internal JPEG preview from the saved CFA DNG so gallery/editing workflows remain intact.
 - Sabre remains RGB/SABRE and Spatial remains RGB/SPATIAL_RGB without routing changes.
 - Spatial Bayer supports the same Spatial bracket-exposure planner; Sabre remains bracket-disabled.
+
+## Final regression guardrails
+
+The production Morph branch now validates the finished architecture before every APK build:
+
+- Classic CFA remains independent from HDR+/RAWmax selection.
+- Sabre maps only to RGB/SABRE.
+- Spatial RGB maps only to RGB/SPATIAL_RGB.
+- Spatial Bayer maps only to BAYER/SPATIAL_BAYER and resolves output scale to native 1.00x.
+- Bracket exposure remains enabled for both Spatial modes and disabled for Sabre.
+- Persistent Revert restores capture-time edit/development state while preserving live exportedUris and capture/library bookkeeping.
+- Post-edit rotation/straighten/crop geometry regression tests run with the Morph build.
+- Multi-frame output-scale regression tests run with the Morph build.
+- Stage 1 UI/workflow markers, editor history, Revert and Spatial Bayer source invariants are checked before Gradle compilation.

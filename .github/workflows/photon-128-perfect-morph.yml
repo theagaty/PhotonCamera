@@ -20,7 +20,7 @@ jobs:
       - name: Check out Perfect Morph branch
         uses: actions/checkout@v4
 
-      - name: Verify Stage 1 refinements
+      - name: Verify Perfect Morph invariants
         shell: bash
         run: |
           grep -q 'MorphAssistSettings' app/src/main/java/com/hinnka/mycamera/ui/camera/CameraScreen.kt
@@ -61,6 +61,14 @@ jobs:
 
       - name: Grant Gradle permission
         run: chmod +x gradlew
+
+      - name: Run Perfect Morph regression tests
+        run: |
+          ./gradlew testDefaultDebugUnitTest --stacktrace \
+            --tests com.hinnka.mycamera.processor.MgcMergeMethodTest \
+            --tests com.hinnka.mycamera.gallery.MorphRevertBaselineTest \
+            --tests com.hinnka.mycamera.gallery.PostEditGeometryTest \
+            --tests com.hinnka.mycamera.viewmodel.MultiFrameOutputScaleTest
 
       - name: Build default debug APK
         run: ./gradlew assembleDefaultDebug --stacktrace
