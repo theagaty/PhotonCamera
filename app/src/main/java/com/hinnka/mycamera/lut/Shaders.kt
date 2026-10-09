@@ -1813,6 +1813,18 @@ object Shaders {
             .withBokehStyleDefine("NATURAL_BOKEH", naturalStyle)
             .withBokehStyleDefine("SOAP_BUBBLE_BOKEH", soapBubbleStyle)
 
+    fun compactBokehHighlightFragmentShader(soapBubbleStyle: Boolean): String =
+        COMPACT_BOKEH_HIGHLIGHT_FRAGMENT_SHADER
+            .withBokehStyleDefine("SOAP_BUBBLE_BOKEH", soapBubbleStyle)
+
+    fun analyticBokehHighlightVertexShader(soapBubbleStyle: Boolean): String =
+        ANALYTIC_BOKEH_HIGHLIGHT_VERTEX_SHADER
+            .withBokehStyleDefine("SOAP_BUBBLE_BOKEH", soapBubbleStyle)
+
+    fun analyticBokehHighlightFragmentShader(soapBubbleStyle: Boolean): String =
+        ANALYTIC_BOKEH_HIGHLIGHT_FRAGMENT_SHADER
+            .withBokehStyleDefine("SOAP_BUBBLE_BOKEH", soapBubbleStyle)
+
     private fun String.withBokehStyleDefine(define: String, enabled: Boolean): String =
         if (enabled) {
             replace("#define $define 0", "#define $define 1")
