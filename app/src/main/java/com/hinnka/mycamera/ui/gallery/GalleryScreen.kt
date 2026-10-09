@@ -338,6 +338,8 @@ fun GalleryScreen(
                                     R.string.pasting_settings_progress
                                 GalleryBatchOperation.EXPORT ->
                                     R.string.exporting_progress
+                                GalleryBatchOperation.RENDER ->
+                                    R.string.rendering_progress
                             }
                             Column(
                                 modifier = Modifier
@@ -481,7 +483,7 @@ fun GalleryScreen(
                                 )
                             }
 
-                            // 批量导出
+                            // Export preserves each selected photo's stored source format.
                             if (viewModel.selectedTab == GalleryTab.PHOTON) {
                                 val canExport = selectedImageCount > 0 &&
                                     !isBatchOperationRunning
@@ -514,6 +516,44 @@ fun GalleryScreen(
                                     Text(
                                         text = stringResource(R.string.export),
                                         color = if (canExport) {
+                                            Color.White
+                                        } else {
+                                            Color.White.copy(alpha = 0.38f)
+                                        },
+                                        fontSize = 12.sp
+                                    )
+                                }
+
+                                val canRender = selectedImageCount > 0 &&
+                                    !isBatchOperationRunning
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    modifier = Modifier.clickable(enabled = canRender) {
+                                        viewModel.renderSelectedPhotos { count ->
+                                            if (count > 0) {
+                                                Toast.makeText(
+                                                    context,
+                                                    R.string.render_complete,
+                                                    Toast.LENGTH_SHORT
+                                                ).show()
+                                            }
+                                        }
+                                    }
+                                ) {
+                                    Icon(
+                                        imageVector = AppIcons.AutoAwesome,
+                                        contentDescription = stringResource(R.string.render),
+                                        tint = if (canRender) {
+                                            AccentColor
+                                        } else {
+                                            Color.White.copy(alpha = 0.38f)
+                                        },
+                                        modifier = Modifier.size(28.dp)
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = stringResource(R.string.render),
+                                        color = if (canRender) {
                                             Color.White
                                         } else {
                                             Color.White.copy(alpha = 0.38f)
@@ -855,8 +895,8 @@ private fun GalleryRecyclerGrid(
                     isSelectionMode = isSelectionMode,
                     isSelectionEnabled = isSelectionEnabled,
                     isLoadingMore = isLoadingMore,
-                    isLandscape = OrientationObserver.isLandscape,
-                    rotationDegrees = OrientationObserver.rotationDegrees,
+                    isLandscape = false,
+                    rotationDegrees = 0f,
                     onPhotoClick = { tab, index ->
                         val state = recyclerView.layoutManager?.onSaveInstanceState()
                         if (tab == GalleryTab.PHOTON) {
@@ -1509,7 +1549,7 @@ private class GalleryPhotoItemView(context: Context) : FrameLayout(context) {
 
         setMeasuredDimension(width, height)
 
-        val isRotated = OrientationObserver.isLandscape
+        val isRotated = false
         val childWidth: Int
         val childHeight: Int
 
@@ -1553,11 +1593,7 @@ private class GalleryPhotoItemView(context: Context) : FrameLayout(context) {
 private fun Bitmap.galleryBitmapAspectRatio(): Float {
     val resolvedWidth = width.takeIf { it > 0 } ?: return 1f
     val resolvedHeight = height.takeIf { it > 0 } ?: return 1f
-    return if (OrientationObserver.isLandscape) {
-        resolvedHeight.toFloat() / resolvedWidth.toFloat()
-    } else {
-        resolvedWidth.toFloat() / resolvedHeight.toFloat()
-    }
+    return resolvedWidth.toFloat() / resolvedHeight.toFloat()
 }
 
 private fun MediaData.isSystemRawImage(): Boolean {
