@@ -341,6 +341,7 @@ fun SettingsScreen(
     val vendorCaptureSettingsByLens by viewModel.vendorCaptureSettingsByLens.collectAsState()
     val customVendorKeySettings by viewModel.customVendorKeySettings.collectAsState()
     val useRaw by viewModel.useRaw.collectAsState(initial = false)
+    val useRawMax by viewModel.useRawMax.collectAsState(initial = false)
     val exportDngWithRawExport by viewModel.exportDngWithRawExport.collectAsState(initial = false)
     val defaultFocalLength by viewModel.defaultFocalLength.collectAsState(initial = 0f)
     val customLensIds by viewModel.customLensIds.collectAsState(initial = emptyList())
@@ -1053,7 +1054,7 @@ fun SettingsScreen(
                                 selectedPage = null
                             }
                         },
-                        modifier = Modifier.autoRotate()
+                        modifier = Modifier
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
@@ -1133,6 +1134,13 @@ fun SettingsScreen(
                             checked = showLevelIndicator,
                             onCheckedChange = { viewModel.setShowLevelIndicator(it) }
                         )
+
+                        HorizontalDivider(
+                            color = Color.White.copy(alpha = 0.1f),
+                            modifier = Modifier.padding(vertical = 8.dp)
+                        )
+
+                        MorphAssistSettingsPanel()
 
                         HorizontalDivider(
                             color = Color.White.copy(alpha = 0.1f),
@@ -2020,128 +2028,130 @@ fun SettingsScreen(
                     SettingsSection(
                         title = stringResource(R.string.settings_professional_group_max_hdr)
                     ) {
-                        QualityLevelSetting(
-                            title = stringResource(R.string.settings_raw_max_spatial_mode),
-                            description = stringResource(R.string.settings_raw_max_spatial_mode_description),
-                            levels = listOf(
-                                MgcRawMaxMode.SPATIAL to stringResource(R.string.settings_raw_max_mode_spatial),
-                                MgcRawMaxMode.SABRE to stringResource(R.string.settings_raw_max_mode_sabre),
-                            ),
-                            currentLevel = hdrPlusMergeMode,
-                            onLevelSelected = viewModel::setHdrPlusMergeMode,
-                        )
-
-                        HorizontalDivider(
-                            color = Color.White.copy(alpha = 0.1f),
-                            modifier = Modifier.padding(vertical = 12.dp)
-                        )
-
-                        SliderSettingItem(
-                            title = stringResource(R.string.settings_hdr_plus_frame_count),
-                            description = stringResource(
-                                R.string.settings_hdr_plus_frame_count_description
-                            ),
-                            value = hdrPlusFrameCountSliderValue,
-                            valueRange = (if (effectiveHdrPlusBracketExposure) {
-                                MultiFrameConfig.MIN_HDR_PLUS_BRACKET_FRAME_COUNT
-                            } else {
-                                MultiFrameConfig.MIN_HDR_PLUS_FRAME_COUNT
-                            }).toFloat()..
-                                MultiFrameConfig.MAX_FRAME_COUNT.toFloat(),
-                            onValueChange = {
-                                hdrPlusFrameCountSliderValue = it.roundToInt().toFloat()
-                            },
-                            resetValue = MultiFrameConfig.DEFAULT_HDR_PLUS_FRAME_COUNT.toFloat(),
-                            onValueChangeFinished = {
-                                viewModel.setHdrPlusFrameCount(
-                                    hdrPlusFrameCountSliderValue.roundToInt()
-                                )
-                            },
-                            valueTextFormatter = { it.roundToInt().toString() }
-                        )
-
-                        HorizontalDivider(
-                            color = Color.White.copy(alpha = 0.1f),
-                            modifier = Modifier.padding(vertical = 12.dp)
-                        )
-
                         SwitchSettingItem(
-                            title = stringResource(R.string.settings_hdr_plus_bracket_exposure),
-                            description = stringResource(
-                                if (hdrPlusMergeMode.supportsBracketExposure) {
-                                    R.string.settings_hdr_plus_bracket_exposure_description
-                                } else {
-                                    R.string.settings_hdr_plus_bracket_exposure_sabre_disabled
-                                }
-                            ),
-                            checked = effectiveHdrPlusBracketExposure,
-                            onCheckedChange = viewModel::setHdrPlusBracketExposureEnabled,
-                            enabled = hdrPlusMergeMode.supportsBracketExposure,
+                            title = stringResource(R.string.morph_rawmax_enabled),
+                            description = stringResource(R.string.morph_rawmax_enabled_description),
+                            checked = useRawMax,
+                            onCheckedChange = viewModel::setUseRawMax,
                         )
 
-                        if (effectiveHdrPlusBracketExposure) {
-                            HorizontalDivider(
-                                color = Color.White.copy(alpha = 0.1f),
-                                modifier = Modifier.padding(vertical = 12.dp)
+                        HorizontalDivider(
+                            color = Color.White.copy(alpha = 0.1f),
+                            modifier = Modifier.padding(vertical = 12.dp)
+                        )
+
+                        if (!useRawMax) {
+                            Text(
+                                text = stringResource(R.string.morph_classic_raw_active),
+                                color = Color.White,
+                                fontWeight = FontWeight.SemiBold,
                             )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = stringResource(R.string.morph_classic_raw_active_description),
+                                color = Color.White.copy(alpha = 0.65f),
+                                fontSize = 13.sp,
+                            )
+                        } else {
+                            QualityLevelSetting(
+                                title = stringResource(R.string.settings_raw_max_spatial_mode),
+                                description = stringResource(R.string.settings_raw_max_spatial_mode_description),
+                                levels = listOf(
+                                    MgcRawMaxMode.SPATIAL_BAYER to stringResource(R.string.settings_raw_max_mode_spatial_bayer),
+                                    MgcRawMaxMode.SPATIAL to stringResource(R.string.settings_raw_max_mode_spatial),
+                                    MgcRawMaxMode.SABRE to stringResource(R.string.settings_raw_max_mode_sabre),
+                                ),
+                                currentLevel = hdrPlusMergeMode,
+                                onLevelSelected = viewModel::setHdrPlusMergeMode,
+                            )
+
+                            if (hdrPlusMergeMode == MgcRawMaxMode.SPATIAL_BAYER) {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = stringResource(R.string.settings_raw_max_mode_spatial_bayer_description),
+                                    color = Color.White.copy(alpha = 0.65f),
+                                    fontSize = 13.sp,
+                                )
+                            }
+
+                            HorizontalDivider(color = Color.White.copy(alpha = 0.1f), modifier = Modifier.padding(vertical = 12.dp))
+
                             SliderSettingItem(
-                                title = stringResource(R.string.settings_hdr_plus_long_frame_ev),
-                                description = stringResource(R.string.settings_hdr_plus_long_frame_ev_description),
-                                value = hdrPlusLongFrameExposureEvUi,
-                                valueRange = MultiFrameConfig.MIN_LONG_FRAME_EXPOSURE_EV..
-                                    MultiFrameConfig.MAX_LONG_FRAME_EXPOSURE_EV,
-                                onValueChange = { hdrPlusLongFrameExposureEvUi = (it * 10f).roundToInt() / 10f },
+                                title = stringResource(R.string.settings_hdr_plus_frame_count),
+                                description = stringResource(R.string.settings_hdr_plus_frame_count_description),
+                                value = hdrPlusFrameCountSliderValue,
+                                valueRange = (if (effectiveHdrPlusBracketExposure) {
+                                    MultiFrameConfig.MIN_HDR_PLUS_BRACKET_FRAME_COUNT
+                                } else {
+                                    MultiFrameConfig.MIN_HDR_PLUS_FRAME_COUNT
+                                }).toFloat()..MultiFrameConfig.MAX_FRAME_COUNT.toFloat(),
+                                onValueChange = { hdrPlusFrameCountSliderValue = it.roundToInt().toFloat() },
+                                resetValue = MultiFrameConfig.DEFAULT_HDR_PLUS_FRAME_COUNT.toFloat(),
                                 onValueChangeFinished = {
-                                    viewModel.setHdrPlusLongFrameExposureEv(hdrPlusLongFrameExposureEvUi)
+                                    viewModel.setHdrPlusFrameCount(hdrPlusFrameCountSliderValue.roundToInt())
                                 },
-                                resetValue = MultiFrameConfig.LONG_FRAME_EXPOSURE_EV.toFloat(),
-                                valueTextFormatter = { String.format(Locale.getDefault(), "+%.1f EV", it) },
+                                valueTextFormatter = { it.roundToInt().toString() }
                             )
-                            HorizontalDivider(
-                                color = Color.White.copy(alpha = 0.1f),
-                                modifier = Modifier.padding(vertical = 12.dp)
+
+                            HorizontalDivider(color = Color.White.copy(alpha = 0.1f), modifier = Modifier.padding(vertical = 12.dp))
+
+                            SwitchSettingItem(
+                                title = stringResource(R.string.settings_hdr_plus_bracket_exposure),
+                                description = stringResource(
+                                    if (hdrPlusMergeMode.supportsBracketExposure) {
+                                        R.string.settings_hdr_plus_bracket_exposure_description
+                                    } else {
+                                        R.string.settings_hdr_plus_bracket_exposure_sabre_disabled
+                                    }
+                                ),
+                                checked = effectiveHdrPlusBracketExposure,
+                                onCheckedChange = viewModel::setHdrPlusBracketExposureEnabled,
+                                enabled = hdrPlusMergeMode.supportsBracketExposure,
                             )
+
+                            if (effectiveHdrPlusBracketExposure) {
+                                HorizontalDivider(color = Color.White.copy(alpha = 0.1f), modifier = Modifier.padding(vertical = 12.dp))
+                                SliderSettingItem(
+                                    title = stringResource(R.string.settings_hdr_plus_long_frame_ev),
+                                    description = stringResource(R.string.settings_hdr_plus_long_frame_ev_description),
+                                    value = hdrPlusLongFrameExposureEvUi,
+                                    valueRange = MultiFrameConfig.MIN_LONG_FRAME_EXPOSURE_EV..MultiFrameConfig.MAX_LONG_FRAME_EXPOSURE_EV,
+                                    onValueChange = { hdrPlusLongFrameExposureEvUi = (it * 10f).roundToInt() / 10f },
+                                    onValueChangeFinished = { viewModel.setHdrPlusLongFrameExposureEv(hdrPlusLongFrameExposureEvUi) },
+                                    resetValue = MultiFrameConfig.LONG_FRAME_EXPOSURE_EV.toFloat(),
+                                    valueTextFormatter = { String.format(Locale.getDefault(), "+%.1f EV", it) },
+                                )
+                                HorizontalDivider(color = Color.White.copy(alpha = 0.1f), modifier = Modifier.padding(vertical = 12.dp))
+                                SliderSettingItem(
+                                    title = stringResource(R.string.settings_hdr_plus_short_frame_ev),
+                                    description = stringResource(R.string.settings_hdr_plus_short_frame_ev_description),
+                                    value = hdrPlusShortFrameExposureEvUi,
+                                    valueRange = MultiFrameConfig.MIN_SHORT_FRAME_EXPOSURE_EV..MultiFrameConfig.MAX_SHORT_FRAME_EXPOSURE_EV,
+                                    onValueChange = { hdrPlusShortFrameExposureEvUi = (it * 10f).roundToInt() / 10f },
+                                    onValueChangeFinished = { viewModel.setHdrPlusShortFrameExposureEv(hdrPlusShortFrameExposureEvUi) },
+                                    resetValue = MultiFrameConfig.DEFAULT_SHORT_FRAME_EXPOSURE_EV,
+                                    valueTextFormatter = { String.format(Locale.getDefault(), "%.1f EV", it) },
+                                )
+                            }
+
+                            HorizontalDivider(color = Color.White.copy(alpha = 0.1f), modifier = Modifier.padding(vertical = 12.dp))
                             SliderSettingItem(
-                                title = stringResource(R.string.settings_hdr_plus_short_frame_ev),
-                                description = stringResource(R.string.settings_hdr_plus_short_frame_ev_description),
-                                value = hdrPlusShortFrameExposureEvUi,
-                                valueRange = MultiFrameConfig.MIN_SHORT_FRAME_EXPOSURE_EV..
-                                    MultiFrameConfig.MAX_SHORT_FRAME_EXPOSURE_EV,
-                                onValueChange = { hdrPlusShortFrameExposureEvUi = (it * 10f).roundToInt() / 10f },
-                                onValueChangeFinished = {
-                                    viewModel.setHdrPlusShortFrameExposureEv(hdrPlusShortFrameExposureEvUi)
-                                },
-                                resetValue = MultiFrameConfig.DEFAULT_SHORT_FRAME_EXPOSURE_EV,
-                                valueTextFormatter = { String.format(Locale.getDefault(), "%.1f EV", it) },
+                                title = stringResource(R.string.settings_ml_ae_max_hdr_ratio),
+                                description = stringResource(R.string.settings_ml_ae_max_hdr_ratio_description),
+                                value = mlAeMaxHdrRatioUi,
+                                valueRange = RawSceneExposureMath.MIN_CONFIGURED_MAX_HDR_RATIO..RawSceneExposureMath.MAX_CONFIGURED_MAX_HDR_RATIO,
+                                onValueChange = { mlAeMaxHdrRatioUi = (it * 10f).roundToInt() / 10f },
+                                onValueChangeFinished = { viewModel.setMlAeMaxHdrRatio(mlAeMaxHdrRatioUi) },
+                                resetValue = RawSceneExposureMath.FAST_MOMENTS_MAX_HDR_RATIO,
+                                valueTextFormatter = { String.format(Locale.getDefault(), "%.1f×", it) },
                             )
                         }
 
-                        HorizontalDivider(
-                            color = Color.White.copy(alpha = 0.1f),
-                            modifier = Modifier.padding(vertical = 12.dp)
-                        )
-                        SliderSettingItem(
-                            title = stringResource(R.string.settings_ml_ae_max_hdr_ratio),
-                            description = stringResource(R.string.settings_ml_ae_max_hdr_ratio_description),
-                            value = mlAeMaxHdrRatioUi,
-                            valueRange = RawSceneExposureMath.MIN_CONFIGURED_MAX_HDR_RATIO..
-                                RawSceneExposureMath.MAX_CONFIGURED_MAX_HDR_RATIO,
-                            onValueChange = { mlAeMaxHdrRatioUi = (it * 10f).roundToInt() / 10f },
-                            onValueChangeFinished = { viewModel.setMlAeMaxHdrRatio(mlAeMaxHdrRatioUi) },
-                            resetValue = RawSceneExposureMath.FAST_MOMENTS_MAX_HDR_RATIO,
-                            valueTextFormatter = { String.format(Locale.getDefault(), "%.1f×", it) },
-                        )
-
-                        HorizontalDivider(
-                            color = Color.White.copy(alpha = 0.1f),
-                            modifier = Modifier.padding(vertical = 12.dp)
-                        )
+                        HorizontalDivider(color = Color.White.copy(alpha = 0.1f), modifier = Modifier.padding(vertical = 12.dp))
 
                         QualityLevelSetting(
                             title = stringResource(R.string.settings_raw_min_shutter_speed),
-                            description = stringResource(
-                                R.string.settings_raw_min_shutter_speed_description
-                            ),
+                            description = stringResource(R.string.settings_raw_min_shutter_speed_description),
                             levels = RAW_MIN_SHUTTER_SPEED_OPTIONS.map { value ->
                                 value to if (value == 0L) {
                                     stringResource(R.string.video_option_off)
@@ -2181,55 +2191,72 @@ fun SettingsScreen(
                             modifier = Modifier.padding(vertical = 12.dp)
                         )
 
-                        QualityLevelSetting(
-                            title = stringResource(R.string.settings_raw_output_upscale_mode),
-                            description = stringResource(
-                                R.string.settings_raw_output_upscale_mode_description
-                            ),
-                            levels = listOf(
-                                RawOutputUpscaleMode.LANCZOS3 to stringResource(
-                                    R.string.settings_raw_output_upscale_mode_lanczos
+                        if (useRawMax && hdrPlusMergeMode == MgcRawMaxMode.SPATIAL_BAYER) {
+                            Text(
+                                text = stringResource(
+                                    R.string.settings_raw_max_spatial_bayer_scale_fixed
                                 ),
-                                RawOutputUpscaleMode.MGC_RAISR to stringResource(
-                                    R.string.settings_raw_output_upscale_mode_raisr
+                                color = Color.White.copy(alpha = 0.72f),
+                                fontSize = 13.sp,
+                            )
+                        } else {
+                            QualityLevelSetting(
+                                title = stringResource(R.string.settings_raw_output_upscale_mode),
+                                description = stringResource(
+                                    R.string.settings_raw_output_upscale_mode_description
                                 ),
-                            ),
-                            currentLevel = rawOutputUpscaleMode,
-                            onLevelSelected = viewModel::setRawOutputUpscaleMode,
-                        )
+                                levels = listOf(
+                                    RawOutputUpscaleMode.LANCZOS3 to stringResource(
+                                        R.string.settings_raw_output_upscale_mode_lanczos
+                                    ),
+                                    RawOutputUpscaleMode.MGC_RAISR to stringResource(
+                                        R.string.settings_raw_output_upscale_mode_raisr
+                                    ),
+                                ),
+                                currentLevel = rawOutputUpscaleMode,
+                                onLevelSelected = viewModel::setRawOutputUpscaleMode,
+                            )
 
-                        HorizontalDivider(
-                            color = Color.White.copy(alpha = 0.1f),
-                            modifier = Modifier.padding(vertical = 12.dp)
-                        )
+                            HorizontalDivider(
+                                color = Color.White.copy(alpha = 0.1f),
+                                modifier = Modifier.padding(vertical = 12.dp)
+                            )
 
-                        val valueFormat = stringResource(R.string.settings_raw_max_output_scale_value)
-                        val raisrUpscaleActive = rawOutputUpscaleMode.isMgcRaisr
-                        SliderSettingItem(
-                            title = stringResource(R.string.settings_raw_max_output_scale),
-                            description = stringResource(
-                                if (raisrUpscaleActive) {
-                                    R.string.settings_raw_max_output_scale_description_raisr
-                                } else {
-                                    R.string.settings_raw_max_output_scale_description
-                                }
-                            ),
-                            value = rawMaxOutputScaleUi,
-                            valueRange = MultiFrameConfig.MIN_OUTPUT_SCALE..MultiFrameConfig.MAX_OUTPUT_SCALE,
-                            resetValue = MultiFrameConfig.DEFAULT_SUPER_RESOLUTION_SCALE,
-                            onResetValue = { scale ->
-                                rawMaxOutputScaleUi = scale
-                                viewModel.setRawMaxOutputScale(scale)
-                            },
-                            onValueChange = {
-                                rawMaxOutputScaleUi = MultiFrameConfig.normalizeOutputScale(it)
-                            },
-                            onValueChangeFinished = {
-                                viewModel.setRawMaxOutputScale(rawMaxOutputScaleUi)
-                            },
-                            valueTextFormatter = { scale -> String.format(valueFormat, scale) },
-                            enabled = !raisrUpscaleActive,
-                        )
+                            val valueFormat = stringResource(
+                                R.string.settings_raw_max_output_scale_value
+                            )
+                            val raisrUpscaleActive = rawOutputUpscaleMode.isMgcRaisr
+                            SliderSettingItem(
+                                title = stringResource(R.string.settings_raw_max_output_scale),
+                                description = stringResource(
+                                    if (raisrUpscaleActive) {
+                                        R.string.settings_raw_max_output_scale_description_raisr
+                                    } else {
+                                        R.string.settings_raw_max_output_scale_description
+                                    }
+                                ),
+                                value = rawMaxOutputScaleUi,
+                                valueRange =
+                                    MultiFrameConfig.MIN_OUTPUT_SCALE..
+                                        MultiFrameConfig.MAX_OUTPUT_SCALE,
+                                resetValue = MultiFrameConfig.DEFAULT_SUPER_RESOLUTION_SCALE,
+                                onResetValue = { scale ->
+                                    rawMaxOutputScaleUi = scale
+                                    viewModel.setRawMaxOutputScale(scale)
+                                },
+                                onValueChange = {
+                                    rawMaxOutputScaleUi =
+                                        MultiFrameConfig.normalizeOutputScale(it)
+                                },
+                                onValueChangeFinished = {
+                                    viewModel.setRawMaxOutputScale(rawMaxOutputScaleUi)
+                                },
+                                valueTextFormatter = { scale ->
+                                    String.format(valueFormat, scale)
+                                },
+                                enabled = !raisrUpscaleActive,
+                            )
+                        }
 
                         HorizontalDivider(
                             color = Color.White.copy(alpha = 0.1f),
@@ -2441,6 +2468,7 @@ fun SettingsScreen(
                         )
                     }
                 }
+
 
                 SettingsPage.PHANTOM -> {
                     if (DeviceUtil.canShowPhantom) {
