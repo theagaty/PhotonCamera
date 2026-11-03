@@ -21,7 +21,8 @@ private const val GOLDEN_SECTION = 0.61803398875f
 fun GridOverlay(
     aspectRatio: Float,
     modifier: Modifier = Modifier,
-    style: GridStyle = GridStyle.THIRDS
+    style: GridStyle = GridStyle.THIRDS,
+    rotationDegrees: Int = 0,
 ) {
     Box(
         modifier = modifier.fillMaxSize().drawWithCache {
@@ -34,25 +35,50 @@ fun GridOverlay(
             val height = minOf(size.height, size.width / aspectRatio)
             val left = (size.width - width) / 2f
             val top = (size.height - height) / 2f
-            val landscapeSpiral = style == GridStyle.GOLDEN_SPIRAL && width > height
+            val normalizedRotation = ((rotationDegrees % 360) + 360) % 360
+            val quarterTurn = normalizedRotation == 90 || normalizedRotation == 270
+            val sourceWidth = if (quarterTurn) height else width
+            val sourceHeight = if (quarterTurn) width else height
+            val landscapeSpiral =
+                style == GridStyle.GOLDEN_SPIRAL && sourceWidth > sourceHeight
             val path = if (landscapeSpiral) {
-                buildGridPath(style, height, width)
+                buildGridPath(style, sourceHeight, sourceWidth)
             } else {
-                buildGridPath(style, width, height)
+                buildGridPath(style, sourceWidth, sourceHeight)
             }
             onDrawBehind {
                 clipRect(left, top, left + width, top + height) {
                     withTransform({
                         translate(left, top)
-                        if (style == GridStyle.GOLDEN_SPIRAL) {
-                            rotate(180f, pivot = Offset(width / 2f, height / 2f))
-                        }
-                        if (landscapeSpiral) {
-                            translate(left = width)
-                            rotate(90f, pivot = Offset.Zero)
+                        when (normalizedRotation) {
+                            90 -> {
+                                translate(left = width)
+                                rotate(90f, pivot = Offset.Zero)
+                            }
+                            180 -> {
+                                translate(left = width, top = height)
+                                rotate(180f, pivot = Offset.Zero)
+                            }
+                            270 -> {
+                                translate(top = height)
+                                rotate(270f, pivot = Offset.Zero)
+                            }
                         }
                     }) {
-                        drawPath(path, Color.White.copy(alpha = 0.5f), style = Stroke(3f))
+                        withTransform({
+                            if (style == GridStyle.GOLDEN_SPIRAL) {
+                                rotate(
+                                    180f,
+                                    pivot = Offset(sourceWidth / 2f, sourceHeight / 2f)
+                                )
+                            }
+                            if (landscapeSpiral) {
+                                translate(left = sourceWidth)
+                                rotate(90f, pivot = Offset.Zero)
+                            }
+                        }) {
+                            drawPath(path, Color.White.copy(alpha = 0.5f), style = Stroke(3f))
+                        }
                     }
                 }
             }

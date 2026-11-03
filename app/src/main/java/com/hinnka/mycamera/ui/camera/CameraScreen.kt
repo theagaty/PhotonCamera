@@ -226,6 +226,9 @@ fun CameraScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    MorphAssistSettings.initialize(context)
+    val morphGridRotation = MorphAssistSettings.gridRotationDegrees
+    val morphLevelPrecision = MorphAssistSettings.levelPrecision
     val scope = rememberCoroutineScope()
     val state by viewModel.state.collectAsState()
     val isCameraInitialized by viewModel.isInitialized.collectAsState()
@@ -1464,6 +1467,7 @@ fun CameraScreen(
                             GridOverlay(
                                 aspectRatio = previewAspectRatio,
                                 style = state.gridStyle,
+                                rotationDegrees = morphGridRotation,
                                 modifier = Modifier.fillMaxSize()
                             )
                         }
@@ -1472,6 +1476,7 @@ fun CameraScreen(
                         if (showLevelIndicator) {
                             LevelIndicatorOverlay(
                                 aspectRatio = previewAspectRatio,
+                                precision = morphLevelPrecision,
                                 modifier = Modifier.fillMaxSize()
                             )
                         }
