@@ -73,6 +73,8 @@ internal object MorphRevertBaseline {
             putNullable("rawCustomWhiteLevel", metadata.rawCustomWhiteLevel)
             putNullable("rawCfaCorrectionMode", metadata.rawCfaCorrectionMode)
             put("applyEffectsToVideo", metadata.applyEffectsToVideo)
+            // New in 1.28.5: Fotufilm is an edit setting and belongs to the capture baseline.
+            putNullable("fotufilmDocument", metadata.fotufilmDocument)
             putNullable("spectralFilmStock", metadata.spectralFilmStock)
             putNullable("spectralFilmPrint", metadata.spectralFilmPrint)
             put("spectralFilmCDensityGain", metadata.spectralFilmCDensityGain.toDouble())
@@ -168,6 +170,7 @@ internal object MorphRevertBaseline {
                 rawCustomWhiteLevel = obj.optNullableFloat("rawCustomWhiteLevel"),
                 rawCfaCorrectionMode = obj.optNullableString("rawCfaCorrectionMode"),
                 applyEffectsToVideo = obj.optBoolean("applyEffectsToVideo", false),
+                fotufilmDocument = obj.optNullableString("fotufilmDocument"),
                 spectralFilmStock = obj.optNullableString("spectralFilmStock"),
                 spectralFilmPrint = obj.optNullableString("spectralFilmPrint"),
                 spectralFilmCDensityGain =
