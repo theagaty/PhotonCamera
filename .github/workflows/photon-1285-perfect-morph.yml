@@ -5,6 +5,9 @@ on:
   push:
     branches:
       - 'hybrid/1.28.5-perfect-morph-release-v1'
+  pull_request:
+    branches:
+      - 'hybrid/1.28.5-release-base'
 
 concurrency:
   group: photon-perfect-morph-${{ github.ref }}
@@ -56,6 +59,9 @@ jobs:
           grep -q 'fun getRawRenderDngFile' app/src/main/java/com/hinnka/mycamera/gallery/GalleryManager.kt
           grep -q 'RawLegacyAutoExposureMatcher.createRequest' app/src/main/java/com/hinnka/mycamera/gallery/GalleryManager.kt
           grep -q 'capture.physicalRawCrop.master.*false' app/src/main/java/com/hinnka/mycamera/gallery/GalleryManager.kt
+          grep -q 'RawProcessor.saveToDng(' app/src/main/java/com/hinnka/mycamera/gallery/GalleryManager.kt
+          grep -q 'MorphRevertBaseline.MASTER_STATUS_PROPERTY' app/src/main/java/com/hinnka/mycamera/gallery/GalleryManager.kt
+          grep -q 'CROPPED_CFA_FALLBACK' app/src/main/java/com/hinnka/mycamera/gallery/MorphRevertBaseline.kt
           grep -q 'GalleryManager.getRawRenderDngFile' app/src/main/java/com/hinnka/mycamera/gallery/PhotoProcessor.kt
 
           # Guard upstream 1.28.5 modules/features that the Morph must preserve.
