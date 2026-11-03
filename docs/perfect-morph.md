@@ -194,3 +194,32 @@ build.
    `photon-1285-morph-validation.yml` on the fork's main branch.
    The dispatcher checks out the 1.28.5 Morph candidate, not main.
    A green Android compilation **cannot** replace these real-device tests.
+
+## Strict master-first execution (2026-11-03)
+
+The Classic CFA save routine now completes its full-sensor `original.dng`
+**before** resolving any preview-specific physical crop, allocating a preview
+buffer, creating a render profile, invoking the GPU/Fotufilm processing engine,
+or writing the internal `classic_render.dng` proxy.
+
+For the sensor master, `RawProcessor.saveToDng(image = image)` receives
+`dngProfilePreparationOptions = null`: GPU viewfinder exposure matching,
+render-profile preparation, PGTM, sharpening, denoise and LUT/Fotufilm
+are never prerequisites for writing its Bayer mosaic. Camera2 capture
+metadata supplies the DNG sensor calibration, white level, CFA pattern and crop
+tags. A recoverable failure in optional DNG metadata patching does not prevent
+the original sensor bytes from being published.
+
+The master is published and its `FULL_SENSOR_CFA` provenance persisted
+before preview processing begins. The separate Bayer render proxy is written
+before GPU processing. If and only if the full-sensor DNG failed, the proxy is
+allowed to replace the missing master as an explicitly marked
+`CROPPED_CFA_FALLBACK` recovery. A successful sensor master is never
+overwritten by a cropped proxy.
+
+Consequently, a preview, Fotufilm, HDR/gainmap, or thumbnail failure may
+still leave a missing JPEG or incomplete gallery presentation, but **cannot
+erase or block a successfully persisted full-sensor RAW DNG**. The code
+carries source-level regression tests guarding write order, proxy fallback,
+and restoration of the immutable master status through edit history.
+Physical device DNG validation and APK compilation are separate release gates.
