@@ -58,6 +58,7 @@ class ClassicCfaMorphContractTest {
         assertTrue(master.contains("image = image,"))
         assertTrue(master.contains("dngProfilePreparationOptions = null"))
         assertTrue(classic.contains("val captureMasterMetadata = metadata.copy("))
+        assertTrue(classic.contains("captureMasterMetadata.customProperties,"))
         assertTrue(classic.contains("if (!masterReady) {"))
         assertTrue(classic.contains("MorphRevertBaseline.CROPPED_CFA_FALLBACK"))
     }
@@ -68,6 +69,21 @@ class ClassicCfaMorphContractTest {
         assertTrue(managerSource.contains("MorphRevertBaseline.CROPPED_CFA_FALLBACK"))
         assertTrue(managerSource.contains("MorphRevertBaseline.MASTER_STATUS_PROPERTY"))
         assertTrue(managerSource.contains("DngCaptureDiagnostics.put(\"capture.masterStatus\", classicMasterStatus)"))
+    }
+
+    @Test
+    fun failedRenderCannotOverwriteSavedMaster() {
+        val classic = managerSource.substringAfter("suspend fun saveRawPhoto(")
+            .substringBefore("suspend fun savePhoto(")
+        val masterSaved = classic.indexOf("saveMetadata(context, photoId, captureMasterMetadata)")
+        val proxyStart = classic.indexOf("if (!persistRenderProxyDng())")
+        val rawResult = classic.indexOf("val rawResult = processor.processDngBufferForHdrSources(")
+        val fallbackCopy = classic.indexOf("renderProxyDngFile.copyTo(dngFile, overwrite = true)")
+        val fallbackGuard = classic.indexOf("if (!masterReady) {", proxyStart)
+        assertTrue("Sensor DNG metadata must commit before renderer", masterSaved < rawResult)
+        assertTrue("Proxy may only overwrite master in fallback branch", fallbackGuard < fallbackCopy)
+        assertTrue("Fallback conditional must occur before preview renderer", fallbackCopy < rawResult)
+        assertTrue("Proxy preparation must not gate master write", masterSaved < proxyStart)
     }
 
     @Test
