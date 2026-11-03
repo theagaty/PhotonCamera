@@ -2347,12 +2347,9 @@ object GalleryManager {
                     rawBlackBorderCrop = metadata.rawBlackBorderCrop,
                     metadataDefaultCrop = masterDefaultCrop,
                 ) ?: masterDefaultCrop
-            // Keep the original sensor DNG independent of GPU/video/preview profiling.
-            // Camera2 CFA samples and DNG color calibration remain handled by the writer.
-            val masterProfileOptions = RawDngProfilePreparationOptions(
-                generatePhotonPgtm = false,
-                captureProfilePreparer = null,
-            )
+            // Strict isolation: the full-sensor master never uses the preview/capture
+            // profile preparer or any rendering-engine color plan. The DNG writer
+            // serializes Camera2 RAW_SENSOR samples and their camera metadata directly.
 
             tempDngFile.delete()
             val masterWritten = try {
@@ -2372,7 +2369,7 @@ object GalleryManager {
                         effectiveFocalLengthMm = captureInfo.focalLength,
                         effectiveFocalLength35mm = captureInfo.focalLength35mm,
                         captureInfo = captureInfo,
-                        dngProfilePreparationOptions = masterProfileOptions,
+                        dngProfilePreparationOptions = null,
                         defaultCropOverride = writtenMasterDefaultCrop,
                     )
                 }
