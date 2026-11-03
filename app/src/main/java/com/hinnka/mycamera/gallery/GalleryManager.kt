@@ -2672,6 +2672,20 @@ object GalleryManager {
                 )
             }
 
+            // Preserve the factual sensor-data origin across gallery edits and Revert.
+            // A fallback is still single-frame CFA RAW, but it is cropped and must never
+            // be represented as an untouched, full-sensor master.
+            val classicMasterStatus = if (masterReady) {
+                MorphRevertBaseline.FULL_SENSOR_CFA
+            } else {
+                MorphRevertBaseline.CROPPED_CFA_FALLBACK
+            }
+            updatedMetadata = updatedMetadata.copy(
+                customProperties = updatedMetadata.customProperties +
+                    (MorphRevertBaseline.MASTER_STATUS_PROPERTY to classicMasterStatus),
+            )
+            DngCaptureDiagnostics.put("capture.masterStatus", classicMasterStatus)
+
             if (shouldAutoSave && exportDngWithRawExport) {
                 if (!exportDng(context, photoId, dngFile, updatedMetadata)) {
                     PLog.e(TAG, "Classic CFA DNG auto-export failed for photo $photoId")
