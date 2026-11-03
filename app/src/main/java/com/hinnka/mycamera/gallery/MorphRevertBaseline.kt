@@ -18,6 +18,10 @@ import org.json.JSONObject
  */
 internal object MorphRevertBaseline {
     const val CUSTOM_PROPERTY_KEY = "perfectMorph.revertBaseline.v1"
+    /** Capture-file provenance is immutable, even when edit settings are reverted. */
+    const val MASTER_STATUS_PROPERTY = "perfectMorph.capture.classicCfaMasterStatus"
+    const val FULL_SENSOR_CFA = "FULL_SENSOR_CFA"
+    const val CROPPED_CFA_FALLBACK = "CROPPED_CFA_FALLBACK"
 
     private val gson = Gson()
 
@@ -99,6 +103,11 @@ internal object MorphRevertBaseline {
                     val key = keys.next()
                     restoredProperties[key] = properties.optString(key)
                 }
+            }
+            // RAW writer completes after the capture-time edit baseline is created.
+            // Keep the actual file provenance rather than reverting it to stale metadata.
+            current.customProperties[MASTER_STATUS_PROPERTY]?.let {
+                restoredProperties[MASTER_STATUS_PROPERTY] = it
             }
             restoredProperties[CUSTOM_PROPERTY_KEY] = encoded
 
