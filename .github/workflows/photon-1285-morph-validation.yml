@@ -2,6 +2,7 @@ name: Validate Photon 1.28.5 Perfect Morph candidate
 
 # Validation dispatcher only: this workflow is the sole change to the fork's main.
 # It never checks out or changes main's app sources. Candidate is tested separately.
+# Validation seed for the pinned upstream-1.28.5 Perfect Morph candidate.
 on:
   workflow_dispatch:
   push:
