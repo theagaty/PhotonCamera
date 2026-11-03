@@ -2333,6 +2333,106 @@ object GalleryManager {
 
             val captureInfo = metadata.toCaptureInfo()
 
+            // ---------------- Full-sensor external/master DNG ----------------
+            val masterDefaultCrop = RawProcessor.resolveCameraRawDefaultCrop(
+                width = sourceRawWidth,
+                height = sourceRawHeight,
+                characteristics = characteristics,
+                captureResult = resolvedCaptureResult,
+            )
+            val writtenMasterDefaultCrop =
+                RawDefaultCropOverride.resolveRawBlackBorderDefaultCrop(
+                    width = sourceRawWidth,
+                    height = sourceRawHeight,
+                    rawBlackBorderCrop = metadata.rawBlackBorderCrop,
+                    metadataDefaultCrop = masterDefaultCrop,
+                ) ?: masterDefaultCrop
+            // Keep the original sensor DNG independent of GPU/video/preview profiling.
+            // Camera2 CFA samples and DNG color calibration remain handled by the writer.
+            val masterProfileOptions = RawDngProfilePreparationOptions(
+                generatePhotonPgtm = false,
+                captureProfilePreparer = null,
+            )
+
+            tempDngFile.delete()
+            val masterWritten = try {
+                FileOutputStream(tempDngFile).use { outputStream ->
+                    RawProcessor.saveToDng(
+                        image = image,
+                        characteristics = characteristics,
+                        captureResult = resolvedCaptureResult,
+                        outputStream = outputStream,
+                        rotation = rotation,
+                        thumbnail = dngThumbnail,
+                        blackLevelMode = metadata.rawBlackLevelMode,
+                        customBlackLevel = metadata.rawCustomBlackLevel,
+                        whiteLevelMode = metadata.rawWhiteLevelMode,
+                        customWhiteLevel = metadata.rawCustomWhiteLevel,
+                        cfaCorrectionMode = metadata.rawCfaCorrectionMode,
+                        effectiveFocalLengthMm = captureInfo.focalLength,
+                        effectiveFocalLength35mm = captureInfo.focalLength35mm,
+                        captureInfo = captureInfo,
+                        dngProfilePreparationOptions = masterProfileOptions,
+                        defaultCropOverride = writtenMasterDefaultCrop,
+                    )
+                }
+            } catch (error: Throwable) {
+                PLog.e(TAG, "Classic full-sensor master DNG save failed", error)
+                false
+            }
+
+            var masterReady = masterWritten &&
+                tempDngFile.exists() && tempDngFile.length() > 0L
+            if (masterReady) {
+                try {
+                    patchSavedDngCorrections(tempDngFile, metadata)
+                    if (dngFile.exists()) dngFile.delete()
+                    if (!tempDngFile.renameTo(dngFile)) {
+                        tempDngFile.copyTo(dngFile, overwrite = true)
+                        tempDngFile.delete()
+                    }
+                    masterReady = dngFile.exists() && dngFile.length() > 0L
+                } catch (error: Exception) {
+                    PLog.e(TAG, "Classic CFA master publication failed", error)
+                    masterReady = false
+                }
+            }
+            if (!masterReady) tempDngFile.delete()
+            DngCaptureDiagnostics.put("capture.masterFallbackToProxy", !masterReady)
+            if (masterReady) {
+                PLog.i(TAG, "Classic full-sensor CFA master saved BEFORE preview: ${sourceRawWidth}x${sourceRawHeight}")
+            } else {
+                PLog.w(TAG, "Full-sensor CFA writer unavailable; will try a cropped CFA recovery")
+            }
+
+            val captureMasterMetadata = metadata.copy(
+                customProperties = if (masterReady) {
+                    metadata.customProperties +
+                        (MorphRevertBaseline.MASTER_STATUS_PROPERTY to MorphRevertBaseline.FULL_SENSOR_CFA)
+                } else {
+                    metadata.customProperties
+                },
+            )
+            if (masterReady) {
+                // Save the RAW file's provenance before any renderer can return or throw.
+                try {
+                    saveMetadata(context, photoId, captureMasterMetadata)
+                } catch (error: Exception) {
+                    PLog.e(TAG, "Classic CFA master metadata save failed", error)
+                }
+                DngCaptureDiagnostics.put("capture.masterStatus", MorphRevertBaseline.FULL_SENSOR_CFA)
+                if (shouldAutoSave && exportDngWithRawExport) {
+                    try {
+                        if (!exportDng(context, photoId, dngFile, captureMasterMetadata)) {
+                            PLog.e(TAG, "Classic CFA full-sensor auto-export failed for photo $photoId")
+                        }
+                    } catch (error: Exception) {
+                        PLog.e(TAG, "Classic CFA full-sensor auto-export failed", error)
+                    }
+                }
+            }
+
+
             // ---------------- Photon render proxy: proven current v1.28 path ----------------
             val physicalRawCrop = RawProcessor.resolveCameraRawPhysicalCrop(
                 width = sourceRawWidth,
@@ -2359,7 +2459,7 @@ object GalleryManager {
                     metadataDefaultCrop = previewBlackBorderCrop,
                 )
 
-            var updatedMetadata: MediaMetadata = metadata.copy(
+            var updatedMetadata: MediaMetadata = captureMasterMetadata.copy(
                 cropRegion = null,
                 customProperties = RawDigitalZoomResampling.resolveCaptureProperties(
                     metadata.customProperties,
@@ -2495,6 +2595,37 @@ object GalleryManager {
                 return true
             }
 
+            // A cropped Bayer proxy is independent of the downstream Fotufilm/GPU render.
+            // If the sensor master succeeded, proxy/render errors cannot delete it.
+            if (!persistRenderProxyDng()) {
+                PLog.e(TAG, "Classic CFA proxy unavailable (fullSensorMasterSaved=$masterReady)")
+                return@withContext
+            }
+            if (!masterReady) {
+                try {
+                    renderProxyDngFile.copyTo(dngFile, overwrite = true)
+                    if (!dngFile.exists() || dngFile.length() == 0L) {
+                        throw IOException("Empty Classic CFA recovery DNG")
+                    }
+                    val recoveryStatus = MorphRevertBaseline.CROPPED_CFA_FALLBACK
+                    updatedMetadata = updatedMetadata.copy(
+                        customProperties = updatedMetadata.customProperties +
+                            (MorphRevertBaseline.MASTER_STATUS_PROPERTY to recoveryStatus),
+                    )
+                    saveMetadata(context, photoId, updatedMetadata)
+                    DngCaptureDiagnostics.put("capture.masterStatus", recoveryStatus)
+                    PLog.w(TAG, "Classic CFA recovery saved: CROPPED Bayer, not full sensor")
+                    if (shouldAutoSave && exportDngWithRawExport) {
+                        if (!exportDng(context, photoId, dngFile, updatedMetadata)) {
+                            PLog.e(TAG, "Classic CFA cropped recovery export failed for photo $photoId")
+                        }
+                    }
+                } catch (error: Exception) {
+                    PLog.e(TAG, "Classic CFA recovery save failed", error)
+                    return@withContext
+                }
+            }
+
             val renderMetadata = RawProcessor.buildCfaDngRenderMetadata(
                 width = previewRawWidth,
                 height = previewRawHeight,
@@ -2579,118 +2710,6 @@ object GalleryManager {
                 fotufilmDocument = FotufilmDocumentStorage.decode(updatedMetadata.fotufilmDocument, "photo metadata"),
                 onMetadata = { raw -> updatedMetadata = updatedMetadata.merge(raw) },
             ) ?: return@withContext
-
-            if (!persistRenderProxyDng()) {
-                rawResult.hdrReferenceBitmap?.let { hdrBitmap ->
-                    if (hdrBitmap !== rawResult.sdrBitmap && !hdrBitmap.isRecycled) {
-                        hdrBitmap.recycle()
-                    }
-                }
-                if (!rawResult.sdrBitmap.isRecycled) rawResult.sdrBitmap.recycle()
-                return@withContext
-            }
-
-            // ---------------- Full-sensor external/master DNG ----------------
-            val masterDefaultCrop = RawProcessor.resolveCameraRawDefaultCrop(
-                width = sourceRawWidth,
-                height = sourceRawHeight,
-                characteristics = characteristics,
-                captureResult = resolvedCaptureResult,
-            )
-            val writtenMasterDefaultCrop =
-                RawDefaultCropOverride.resolveRawBlackBorderDefaultCrop(
-                    width = sourceRawWidth,
-                    height = sourceRawHeight,
-                    rawBlackBorderCrop = metadata.rawBlackBorderCrop,
-                    metadataDefaultCrop = masterDefaultCrop,
-                ) ?: masterDefaultCrop
-            val masterProfileOptions = classicCfaDngProfilePreparationOptions(
-                context = context,
-                metadata = metadata,
-                width = sourceRawWidth,
-                height = sourceRawHeight,
-                defaultCrop = masterDefaultCrop,
-                aspectRatio = aspectRatio,
-                rotation = rotation,
-                capturePreviewThumbnail = dngThumbnail,
-                characteristics = characteristics,
-            )
-
-            tempDngFile.delete()
-            val masterWritten = try {
-                FileOutputStream(tempDngFile).use { outputStream ->
-                    RawProcessor.saveToDng(
-                        image = image,
-                        characteristics = characteristics,
-                        captureResult = resolvedCaptureResult,
-                        outputStream = outputStream,
-                        rotation = rotation,
-                        thumbnail = dngThumbnail,
-                        blackLevelMode = metadata.rawBlackLevelMode,
-                        customBlackLevel = metadata.rawCustomBlackLevel,
-                        whiteLevelMode = metadata.rawWhiteLevelMode,
-                        customWhiteLevel = metadata.rawCustomWhiteLevel,
-                        cfaCorrectionMode = metadata.rawCfaCorrectionMode,
-                        effectiveFocalLengthMm = captureInfo.focalLength,
-                        effectiveFocalLength35mm = captureInfo.focalLength35mm,
-                        captureInfo = captureInfo,
-                        dngProfilePreparationOptions = masterProfileOptions,
-                        defaultCropOverride = writtenMasterDefaultCrop,
-                    )
-                }
-            } catch (error: Throwable) {
-                PLog.e(TAG, "Classic full-sensor master DNG save failed", error)
-                false
-            }
-
-            val masterReady = masterWritten &&
-                tempDngFile.exists() &&
-                tempDngFile.length() > 0L
-            if (masterReady) {
-                patchSavedDngCorrections(tempDngFile, metadata)
-                if (dngFile.exists()) dngFile.delete()
-                if (!tempDngFile.renameTo(dngFile)) {
-                    tempDngFile.copyTo(dngFile, overwrite = true)
-                    tempDngFile.delete()
-                }
-                DngCaptureDiagnostics.put("capture.masterFallbackToProxy", false)
-                PLog.i(
-                    TAG,
-                    "Classic CFA master persisted full sensor payload: " +
-                        "source=${sourceRawWidth}x${sourceRawHeight} " +
-                        "defaultCrop=$writtenMasterDefaultCrop physicalCrop=false",
-                )
-            } else {
-                tempDngFile.delete()
-                // Never lose the capture because an experimental full-sensor writer path failed.
-                renderProxyDngFile.copyTo(dngFile, overwrite = true)
-                DngCaptureDiagnostics.put("capture.masterFallbackToProxy", true)
-                PLog.w(
-                    TAG,
-                    "Classic full-sensor master failed; preserved capture by promoting " +
-                        "the Stage-2-compatible render proxy to original.dng",
-                )
-            }
-
-            // Preserve the factual sensor-data origin across gallery edits and Revert.
-            // A fallback is still single-frame CFA RAW, but it is cropped and must never
-            // be represented as an untouched, full-sensor master.
-            val classicMasterStatus = if (masterReady) {
-                MorphRevertBaseline.FULL_SENSOR_CFA
-            } else {
-                MorphRevertBaseline.CROPPED_CFA_FALLBACK
-            }
-            updatedMetadata = updatedMetadata.copy(
-                customProperties = updatedMetadata.customProperties +
-                    (MorphRevertBaseline.MASTER_STATUS_PROPERTY to classicMasterStatus),
-            )
-            DngCaptureDiagnostics.put("capture.masterStatus", classicMasterStatus)
-
-            if (shouldAutoSave && exportDngWithRawExport) {
-                if (!exportDng(context, photoId, dngFile, updatedMetadata)) {
-                    PLog.e(TAG, "Classic CFA DNG auto-export failed for photo $photoId")
-                }
-            }
 
             // ---------------- Photon-owned JPEG/thumbnail from current preview pipeline ----------
             var bitmap = rawResult.sdrBitmap
