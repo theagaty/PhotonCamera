@@ -223,3 +223,10 @@ erase or block a successfully persisted full-sensor RAW DNG**. The code
 carries source-level regression tests guarding write order, proxy fallback,
 and restoration of the immutable master status through edit history.
 Physical device DNG validation and APK compilation are separate release gates.
+
+## CI validation registration
+
+The release-base branch has the same validation workflow as the candidate so the draft
+PR can run tests on `pull_request` `synchronize` events. The fork's main branch also
+has a manual workflow dispatcher; both check out the candidate version, never
+merge it into `main`, and publish debug APK artifacts only on successful builds.
