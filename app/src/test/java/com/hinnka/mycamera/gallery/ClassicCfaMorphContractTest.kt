@@ -31,6 +31,38 @@ class ClassicCfaMorphContractTest {
     }
 
     @Test
+    fun fullSensorMasterIsSavedBeforeAnyPreviewPreparationOrFotufilmRendering() {
+        val classic = managerSource.substringAfter("suspend fun saveRawPhoto(")
+            .substringBefore("suspend fun savePhoto(")
+        val master = classic.indexOf("RawProcessor.saveToDng(")
+        val masterMetadata = classic.indexOf("saveMetadata(context, photoId, captureMasterMetadata)")
+        val previewCrop = classic.indexOf("RawProcessor.resolveCameraRawPhysicalCrop(")
+        val previewCopy = classic.indexOf("RawProcessor.copyRawSensorImageToContiguousBuffer(")
+        val proxyWrite = classic.indexOf("if (!persistRenderProxyDng())")
+        val fotufilmRender = classic.indexOf("processor.processDngBufferForHdrSources(")
+
+        assertTrue("Master sensor DNG must be created", master >= 0)
+        assertTrue("RAW provenance must save before preview", master < masterMetadata)
+        assertTrue("Preview cropping must not gate master RAW", masterMetadata < previewCrop)
+        assertTrue("Sensor master must precede preview buffer", previewCrop < previewCopy)
+        assertTrue("Bayer proxy is prepared before rendering", previewCopy < proxyWrite)
+        assertTrue("GPU / Fotufilm may only run after RAW+proxy saves", proxyWrite < fotufilmRender)
+    }
+
+    @Test
+    fun fullSensorMasterBypassesGpuCaptureProfile() {
+        val classic = managerSource.substringAfter("suspend fun saveRawPhoto(")
+            .substringBefore("suspend fun savePhoto(")
+        val master = classic.substringAfter("RawProcessor.saveToDng(")
+            .substringBefore("val masterReady =")
+        assertTrue(master.contains("image = image,"))
+        assertTrue(master.contains("dngProfilePreparationOptions = null"))
+        assertTrue(classic.contains("val captureMasterMetadata = metadata.copy("))
+        assertTrue(classic.contains("if (!masterReady) {"))
+        assertTrue(classic.contains("MorphRevertBaseline.CROPPED_CFA_FALLBACK"))
+    }
+
+    @Test
     fun fullSensorMasterAndCroppedRecoveryAreDistinguishable() {
         assertTrue(managerSource.contains("MorphRevertBaseline.FULL_SENSOR_CFA"))
         assertTrue(managerSource.contains("MorphRevertBaseline.CROPPED_CFA_FALLBACK"))
