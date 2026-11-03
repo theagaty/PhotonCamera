@@ -152,6 +152,7 @@ private data class EditSnapshot(
     val rawBaselineLutId: String?,
     val rawRenderingEngine: RawRenderingEngine,
     val rawToneMappingParameters: RawToneMappingParameters,
+    val rawFotufilmDocument: FotufilmDocument?,
     val rawSpectralFilmStock: String?,
     val rawSpectralFilmPrint: String?,
     val rawSpectralFilmCDensityGain: Float,
@@ -2424,6 +2425,7 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
             rawBaselineLutId = editRawBaselineLutId.value,
             rawRenderingEngine = editRawRenderingEngine.value,
             rawToneMappingParameters = editRawToneMappingParameters.value,
+            rawFotufilmDocument = editRawFotufilmDocument.value,
             rawSpectralFilmStock = editRawSpectralFilmStock.value,
             rawSpectralFilmPrint = editRawSpectralFilmPrint.value,
             rawSpectralFilmCDensityGain = editRawSpectralFilmCDensityGain.value,
@@ -2553,6 +2555,7 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
         editRawBaselineLutId.value = snapshot.rawBaselineLutId
         editRawRenderingEngine.value = snapshot.rawRenderingEngine
         editRawToneMappingParameters.value = snapshot.rawToneMappingParameters
+        editRawFotufilmDocument.value = snapshot.rawFotufilmDocument
         editRawSpectralFilmStock.value = snapshot.rawSpectralFilmStock
         editRawSpectralFilmPrint.value = snapshot.rawSpectralFilmPrint
         editRawSpectralFilmCDensityGain.value = snapshot.rawSpectralFilmCDensityGain
