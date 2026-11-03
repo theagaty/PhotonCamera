@@ -110,6 +110,7 @@ jobs:
           ./gradlew --no-daemon --max-workers=2 testDefaultDebugUnitTest --stacktrace \
             --tests com.hinnka.mycamera.processor.MgcMergeMethodTest \
             --tests com.hinnka.mycamera.gallery.MorphRevertBaselineTest \
+            --tests com.hinnka.mycamera.gallery.ClassicCfaMorphContractTest \
             --tests com.hinnka.mycamera.gallery.PostEditGeometryTest \
             --tests com.hinnka.mycamera.viewmodel.MultiFrameOutputScaleTest
 
