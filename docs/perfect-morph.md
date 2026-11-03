@@ -150,3 +150,47 @@ This stage is intentionally layered on top of the verified final-regression chec
 - Preserve the RAW editor's new Fotufilm processing input on the Classic CFA rendering path. Do not overwrite the 1.28.5 `GalleryManager`/RAW processor wholesale.
 - Maintain the Morph's single-frame Classic CFA DNG, separate RAWmax toggle, Spatial Bayer native CFA route, and explicit Export/Render actions.
 - Do not claim that a CI build proves device-specific DNG color-matrix fidelity. Issue bjzhou/PhotonCamera#85 reports exported magenta DNG on a Realme GT 7 Pro in 1.28.5; verify exported CFA images in an external raw decoder and inspect metadata calibration before considering this port device-validated.
+
+
+## True RAW acceptance requirements (1.28.5)
+
+A Classic CFA exposure must originate from a **single Camera2 RAW_SENSOR frame**.
+The external `original.dng` normally writes the untouched image's full Bayer mosaic
+using `RawProcessor.saveToDng(image = image)`, retaining all source pixels.
+Black level, white level, CFA phase, as-shot calibration and color matrices are DNG
+metadata; preview development (Fotufilm/DCP/LUT/sharpening/denoise/tone mapping)
+must never replace the master sensor mosaic.
+
+`classic_render.dng` is the physically cropped *internal* RAW proxy that keeps
+the current Photon renderer compatible; it must not be confused with the master.
+A failed master write promotes the single-frame cropped CFA proxy as a recovery
+file (never rendered RGB), explicitly tagged in photo custom properties as:
+
+- `perfectMorph.capture.classicCfaMasterStatus=FULL_SENSOR_CFA`
+- `perfectMorph.capture.classicCfaMasterStatus=CROPPED_CFA_FALLBACK`
+
+This status is immutable across Revert to Original. A cropped fallback remains CFA
+RAW but is **not** a full-sensor master; report it as such. The full-size master
+write and DNG calibration must be device-validated, not inferred from a green CI
+build.
+
+### Acceptance checklist
+
+1. Turn RAW on and RAWmax off. Capture RAW_SENSOR with one frame; export Original
+   and verify a CFA/Bayer DNG with dimensions matching the sensor's RAW capture.
+2. Confirm the master color calibration in Darktable/Lightroom/another independent
+   RAW decoder. Compare 1.28.4 and 1.28.5 under the same light to detect a magenta
+   or incorrect-white-balance regression (upstream issue #85).
+3. Toggle Fotufilm, DCP/render engine, LUT, sharpening, denoising and exposure
+   development. Verify the JPEG/render changes but exporting Original returns the
+   same Bayer mosaic. Check Undo, Redo, Reset and Revert, including Fotufilm.
+4. Separately test RAWmax Spatial Bayer (native 1.0x CFA), Spatial RGB and SABRE;
+   they are computational modes, **not** the single-frame Classic option.
+5. Rotate the device with auto-rotation both enabled and disabled. Verify that
+   UI orientation options do not change the sensor master or EXIF orientation.
+6. If the RAW full-sensor master fails, confirm the fallback is explicitly tagged
+   `CROPPED_CFA_FALLBACK`; do not report that capture as full-sensor.
+7. Run `photon-1285-perfect-morph.yml` or the manual dispatcher
+   `photon-1285-morph-validation.yml` on the fork's main branch.
+   The dispatcher checks out the 1.28.5 Morph candidate, not main.
+   A green Android compilation **cannot** replace these real-device tests.
