@@ -68,7 +68,7 @@ class ClassicCfaMorphContractTest {
         assertTrue(managerSource.contains("MorphRevertBaseline.FULL_SENSOR_CFA"))
         assertTrue(managerSource.contains("MorphRevertBaseline.CROPPED_CFA_FALLBACK"))
         assertTrue(managerSource.contains("MorphRevertBaseline.MASTER_STATUS_PROPERTY"))
-        assertTrue(managerSource.contains("DngCaptureDiagnostics.put(\"capture.masterStatus\", classicMasterStatus)"))
+        assertTrue(managerSource.contains("DngCaptureDiagnostics.put(\"capture.masterStatus\", MorphRevertBaseline.FULL_SENSOR_CFA)"))
     }
 
     @Test
