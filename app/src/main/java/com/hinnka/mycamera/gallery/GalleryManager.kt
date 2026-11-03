@@ -2382,7 +2382,12 @@ object GalleryManager {
                 tempDngFile.exists() && tempDngFile.length() > 0L
             if (masterReady) {
                 try {
-                    patchSavedDngCorrections(tempDngFile, metadata)
+                    // Optional metadata corrections must not block saving raw sensor pixels.
+                    try {
+                        patchSavedDngCorrections(tempDngFile, metadata)
+                    } catch (error: Exception) {
+                        PLog.w(TAG, "Optional DNG correction failed; preserving original CFA mosaic", error)
+                    }
                     if (dngFile.exists()) dngFile.delete()
                     if (!tempDngFile.renameTo(dngFile)) {
                         tempDngFile.copyTo(dngFile, overwrite = true)
@@ -2458,8 +2463,9 @@ object GalleryManager {
 
             var updatedMetadata: MediaMetadata = captureMasterMetadata.copy(
                 cropRegion = null,
+                // Retain immutable sensor-master provenance when adding preview crop metadata.
                 customProperties = RawDigitalZoomResampling.resolveCaptureProperties(
-                    metadata.customProperties,
+                    captureMasterMetadata.customProperties,
                     physicalRawCrop,
                     metadata.rawBlackBorderCrop,
                 ),
