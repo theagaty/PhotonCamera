@@ -338,6 +338,8 @@ fun GalleryScreen(
                                     R.string.pasting_settings_progress
                                 GalleryBatchOperation.EXPORT ->
                                     R.string.exporting_progress
+                                GalleryBatchOperation.RENDER ->
+                                    R.string.rendering_progress
                             }
                             Column(
                                 modifier = Modifier
@@ -481,7 +483,7 @@ fun GalleryScreen(
                                 )
                             }
 
-                            // 批量导出
+                            // Export preserves each selected photo's stored source format.
                             if (viewModel.selectedTab == GalleryTab.PHOTON) {
                                 val canExport = selectedImageCount > 0 &&
                                     !isBatchOperationRunning
@@ -514,6 +516,44 @@ fun GalleryScreen(
                                     Text(
                                         text = stringResource(R.string.export),
                                         color = if (canExport) {
+                                            Color.White
+                                        } else {
+                                            Color.White.copy(alpha = 0.38f)
+                                        },
+                                        fontSize = 12.sp
+                                    )
+                                }
+
+                                val canRender = selectedImageCount > 0 &&
+                                    !isBatchOperationRunning
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    modifier = Modifier.clickable(enabled = canRender) {
+                                        viewModel.renderSelectedPhotos { count ->
+                                            if (count > 0) {
+                                                Toast.makeText(
+                                                    context,
+                                                    R.string.render_complete,
+                                                    Toast.LENGTH_SHORT
+                                                ).show()
+                                            }
+                                        }
+                                    }
+                                ) {
+                                    Icon(
+                                        imageVector = AppIcons.AutoAwesome,
+                                        contentDescription = stringResource(R.string.render),
+                                        tint = if (canRender) {
+                                            AccentColor
+                                        } else {
+                                            Color.White.copy(alpha = 0.38f)
+                                        },
+                                        modifier = Modifier.size(28.dp)
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = stringResource(R.string.render),
+                                        color = if (canRender) {
                                             Color.White
                                         } else {
                                             Color.White.copy(alpha = 0.38f)
