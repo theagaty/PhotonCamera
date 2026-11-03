@@ -31,7 +31,8 @@ private const val DefaultLevelAspectRatio = 3f / 4f
 @Composable
 fun LevelIndicatorOverlay(
     aspectRatio: Float,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    precision: MorphLevelPrecision = MorphLevelPrecision.STANDARD,
 ) {
     val context = LocalContext.current
 
@@ -67,7 +68,17 @@ fun LevelIndicatorOverlay(
         val listener = object : SensorEventListener {
             override fun onSensorChanged(event: SensorEvent?) {
                 val reading = event?.values?.let {
-                    calculateLevelIndicatorReading(it, previousMode)
+                    calculateLevelIndicatorReading(
+                        values = it,
+                        previousMode = previousMode,
+                        horizonLevelThresholdDegrees = if (
+                            precision == MorphLevelPrecision.FINE
+                        ) {
+                            0.20f
+                        } else {
+                            3f
+                        }
+                    )
                 }
                 if (reading == null) {
                     if (!invalidSensorReadingLogged) {
