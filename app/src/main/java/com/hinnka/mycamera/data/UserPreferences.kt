@@ -367,7 +367,8 @@ class UserPreferences internal constructor(
     /** HDR+：RAW 多帧融合。 */
     var useRawMax: Boolean by stored({ p ->
         val requested = if (hasCurrentMaxPreferences) p[K.USE_RAW_MAX] ?: false else storedUseRaw && legacyMultiFrameEnabled
-        requested || storedUseRaw
+        // Hybrid Morph: Classic RAW is independent of computational RAWmax.
+        requested
     }) { p, v -> p[K.USE_RAW_MAX] = v }
     /** 使用 RAW 格式拍摄。读取结果综合 [useRawMax]/[useJpgMax]；写入只记录 RAW 开关本身。 */
     var useRaw: Boolean
