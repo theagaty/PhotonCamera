@@ -5147,7 +5147,7 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
 
             try {
                 val context = getApplication<Application>()
-                val quality = photoQuality.firstOrNull() ?: 95
+                val quality = userPreferencesRepository.latest().photoQuality
 
                 withContext(Dispatchers.IO) {
                     toExport.forEachIndexed { index, photo ->
@@ -5287,7 +5287,7 @@ class GalleryViewModel(application: Application) : AndroidViewModel(application)
                         sharpeningValue = 0f,
                         noiseReductionValue = 0f,
                         chromaNoiseReductionValue = 0f,
-                        photoQuality = photoQuality.firstOrNull() ?: 95,
+                        photoQuality = userPreferencesRepository.latest().photoQuality,
                         preferHeicExport = false,
                         preferJpeg444Export = false,
                     )
