@@ -349,6 +349,7 @@ fun SettingsScreen(
     val vendorCaptureSettingsByLens by preferenceValue { it.vendorCaptureSettingsByLens }
     val customVendorKeySettings by preferenceValue { it.customVendorKeySettings }
     val useRaw by preferenceValue { it.useRaw }
+    val useRawMax by preferenceValue { it.useRawMax }
     var exportDngWithRawExport by rememberPreference(UserPreferences::exportDngWithRawExport)
     var defaultFocalLength by rememberPreference(UserPreferences::defaultFocalLength)
     val customLensIds by preferenceValue { it.customLensIds }
@@ -1060,7 +1061,7 @@ fun SettingsScreen(
                                 selectedPage = null
                             }
                         },
-                        modifier = Modifier.autoRotate()
+                        modifier = Modifier
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
@@ -1140,6 +1141,13 @@ fun SettingsScreen(
                             checked = showLevelIndicator,
                             onCheckedChange = { showLevelIndicator = it }
                         )
+
+                        HorizontalDivider(
+                            color = Color.White.copy(alpha = 0.1f),
+                            modifier = Modifier.padding(vertical = 8.dp)
+                        )
+
+                        MorphAssistSettingsPanel()
 
                         HorizontalDivider(
                             color = Color.White.copy(alpha = 0.1f),
@@ -2027,16 +2035,49 @@ fun SettingsScreen(
                     SettingsSection(
                         title = stringResource(R.string.settings_professional_group_max_hdr)
                     ) {
-                        QualityLevelSetting(
+                        SwitchSettingItem(
+                            title = stringResource(R.string.morph_rawmax_enabled),
+                            description = stringResource(R.string.morph_rawmax_enabled_description),
+                            checked = useRawMax,
+                            onCheckedChange = viewModel::setUseRawMax,
+                        )
+                        HorizontalDivider(
+                            color = Color.White.copy(alpha = 0.1f),
+                            modifier = Modifier.padding(vertical = 12.dp)
+                        )
+                        if (!useRawMax) {
+                            Text(
+                                text = stringResource(R.string.morph_classic_raw_active),
+                                color = Color.White,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = stringResource(R.string.morph_classic_raw_active_description),
+                                color = Color.White.copy(alpha = 0.65f),
+                                fontSize = 13.sp,
+                            )
+                        } else {
+                            QualityLevelSetting(
                             title = stringResource(R.string.settings_raw_max_spatial_mode),
                             description = stringResource(R.string.settings_raw_max_spatial_mode_description),
                             levels = listOf(
+                                MgcRawMaxMode.SPATIAL_BAYER to stringResource(R.string.settings_raw_max_mode_spatial_bayer),
                                 MgcRawMaxMode.SPATIAL to stringResource(R.string.settings_raw_max_mode_spatial),
                                 MgcRawMaxMode.SABRE to stringResource(R.string.settings_raw_max_mode_sabre),
                             ),
                             currentLevel = hdrPlusMergeMode,
                             onLevelSelected = viewModel::setHdrPlusMergeMode,
                         )
+                        if (hdrPlusMergeMode == MgcRawMaxMode.SPATIAL_BAYER) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = stringResource(R.string.settings_raw_max_mode_spatial_bayer_description),
+                                color = Color.White.copy(alpha = 0.65f),
+                                fontSize = 13.sp,
+                            )
+                        }
+
 
                         HorizontalDivider(
                             color = Color.White.copy(alpha = 0.1f),
@@ -2144,6 +2185,8 @@ fun SettingsScreen(
                             modifier = Modifier.padding(vertical = 12.dp)
                         )
 
+                        } // RAWmax-only controls; single-frame Classic CFA stays independent.
+
                         QualityLevelSetting(
                             title = stringResource(R.string.settings_raw_min_shutter_speed),
                             description = stringResource(
@@ -2201,55 +2244,72 @@ fun SettingsScreen(
                             modifier = Modifier.padding(vertical = 12.dp)
                         )
 
-                        QualityLevelSetting(
-                            title = stringResource(R.string.settings_raw_output_upscale_mode),
-                            description = stringResource(
-                                R.string.settings_raw_output_upscale_mode_description
-                            ),
-                            levels = listOf(
-                                RawOutputUpscaleMode.LANCZOS3 to stringResource(
-                                    R.string.settings_raw_output_upscale_mode_lanczos
+                        if (useRawMax && hdrPlusMergeMode == MgcRawMaxMode.SPATIAL_BAYER) {
+                            Text(
+                                text = stringResource(
+                                    R.string.settings_raw_max_spatial_bayer_scale_fixed
                                 ),
-                                RawOutputUpscaleMode.MGC_RAISR to stringResource(
-                                    R.string.settings_raw_output_upscale_mode_raisr
+                                color = Color.White.copy(alpha = 0.72f),
+                                fontSize = 13.sp,
+                            )
+                        } else {
+                            QualityLevelSetting(
+                                title = stringResource(R.string.settings_raw_output_upscale_mode),
+                                description = stringResource(
+                                    R.string.settings_raw_output_upscale_mode_description
                                 ),
-                            ),
-                            currentLevel = rawOutputUpscaleMode,
-                            onLevelSelected = viewModel::setRawOutputUpscaleMode,
-                        )
+                                levels = listOf(
+                                    RawOutputUpscaleMode.LANCZOS3 to stringResource(
+                                        R.string.settings_raw_output_upscale_mode_lanczos
+                                    ),
+                                    RawOutputUpscaleMode.MGC_RAISR to stringResource(
+                                        R.string.settings_raw_output_upscale_mode_raisr
+                                    ),
+                                ),
+                                currentLevel = rawOutputUpscaleMode,
+                                onLevelSelected = viewModel::setRawOutputUpscaleMode,
+                            )
 
-                        HorizontalDivider(
-                            color = Color.White.copy(alpha = 0.1f),
-                            modifier = Modifier.padding(vertical = 12.dp)
-                        )
+                            HorizontalDivider(
+                                color = Color.White.copy(alpha = 0.1f),
+                                modifier = Modifier.padding(vertical = 12.dp)
+                            )
 
-                        val valueFormat = stringResource(R.string.settings_raw_max_output_scale_value)
-                        val raisrUpscaleActive = rawOutputUpscaleMode.isMgcRaisr
-                        SliderSettingItem(
-                            title = stringResource(R.string.settings_raw_max_output_scale),
-                            description = stringResource(
-                                if (raisrUpscaleActive) {
-                                    R.string.settings_raw_max_output_scale_description_raisr
-                                } else {
-                                    R.string.settings_raw_max_output_scale_description
-                                }
-                            ),
-                            value = rawMaxOutputScaleUi,
-                            valueRange = MultiFrameConfig.MIN_OUTPUT_SCALE..MultiFrameConfig.MAX_OUTPUT_SCALE,
-                            resetValue = MultiFrameConfig.DEFAULT_SUPER_RESOLUTION_SCALE,
-                            onResetValue = { scale ->
-                                rawMaxOutputScaleUi = scale
-                                viewModel.setRawMaxOutputScale(scale)
-                            },
-                            onValueChange = {
-                                rawMaxOutputScaleUi = MultiFrameConfig.normalizeOutputScale(it)
-                            },
-                            onValueChangeFinished = {
-                                viewModel.setRawMaxOutputScale(rawMaxOutputScaleUi)
-                            },
-                            valueTextFormatter = { scale -> String.format(valueFormat, scale) },
-                            enabled = !raisrUpscaleActive,
-                        )
+                            val valueFormat = stringResource(
+                                R.string.settings_raw_max_output_scale_value
+                            )
+                            val raisrUpscaleActive = rawOutputUpscaleMode.isMgcRaisr
+                            SliderSettingItem(
+                                title = stringResource(R.string.settings_raw_max_output_scale),
+                                description = stringResource(
+                                    if (raisrUpscaleActive) {
+                                        R.string.settings_raw_max_output_scale_description_raisr
+                                    } else {
+                                        R.string.settings_raw_max_output_scale_description
+                                    }
+                                ),
+                                value = rawMaxOutputScaleUi,
+                                valueRange =
+                                    MultiFrameConfig.MIN_OUTPUT_SCALE..
+                                        MultiFrameConfig.MAX_OUTPUT_SCALE,
+                                resetValue = MultiFrameConfig.DEFAULT_SUPER_RESOLUTION_SCALE,
+                                onResetValue = { scale ->
+                                    rawMaxOutputScaleUi = scale
+                                    viewModel.setRawMaxOutputScale(scale)
+                                },
+                                onValueChange = {
+                                    rawMaxOutputScaleUi =
+                                        MultiFrameConfig.normalizeOutputScale(it)
+                                },
+                                onValueChangeFinished = {
+                                    viewModel.setRawMaxOutputScale(rawMaxOutputScaleUi)
+                                },
+                                valueTextFormatter = { scale ->
+                                    String.format(valueFormat, scale)
+                                },
+                                enabled = !raisrUpscaleActive,
+                            )
+                        }
 
                         HorizontalDivider(
                             color = Color.White.copy(alpha = 0.1f),
@@ -2463,6 +2523,7 @@ fun SettingsScreen(
                         )
                     }
                 }
+
 
                 SettingsPage.PHANTOM -> {
                     if (DeviceUtil.canShowPhantom) {
