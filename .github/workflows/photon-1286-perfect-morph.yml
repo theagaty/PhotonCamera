@@ -89,7 +89,8 @@ jobs:
           test -f app/src/main/java/com/hinnka/mycamera/raw/RawColorCalibrationPolicy.kt
           test -f app/src/main/java/com/hinnka/mycamera/raw/DngWarpRectilinear.kt
           test -f app/src/main/cpp/sony_lens_correction.cpp
-          test -f app/src/main/assets/dncnn.tflite
+          test -f app/src/main/java/com/hinnka/mycamera/ml/AiDenoiseModelManager.kt
+          test -f app/src/main/java/com/hinnka/mycamera/ml/ColorFmModelManager.kt
           grep -q 'settings_raw_color_calibration_mode' app/src/main/java/com/hinnka/mycamera/ui/settings/SettingsScreen.kt
           grep -q 'AI_COLOR_MATCH_MAX_EDGE' app/src/main/java/com/hinnka/mycamera/viewmodel/GalleryViewModel.kt
           grep -q 'mgcTuningSnr = RawMgcTuningSnr.read' app/src/main/java/com/hinnka/mycamera/gallery/GalleryManager.kt
